@@ -121,7 +121,13 @@ The script and the installer were written for Windows and reviewed, but not run 
 | Sounds | System sounds | Desktop sound theme (`canberra-gtk-play`, else `paplay`) | `/System/Library/Sounds` |
 | Phones (MTP) | Windows Portable Devices, as `phone://Name/Storage/…` | Mounted by the desktop (GVfs `mtp:`/`gphoto2:`, or jmtpfs/simple-mtpfs); not yet mounted ones are mounted on opening | Not supported |
 
-Without libvlc the app runs normally; only audio/video previews are unavailable.
+Without libvlc the app runs normally; only audio/video previews (and their media details) are unavailable.
+
+libvlc on Linux and macOS: the app loads the system's libvlc 3 (`libvlc.so.5`/`libvlccore.so.9` on Linux, through
+the resolver in `App.axaml.cs`, since only the -dev package installs the unversioned `libvlc.so`; on macOS only
+`/Applications/VLC.app/Contents/MacOS/lib`). Users need the full `vlc` package (Debian/Ubuntu split the plugins out of
+`libvlc5`; Fedora's own build lacks H.264/HEVC, RPM Fusion's has them). VLC from Flatpak or Snap is sandboxed and can't
+be loaded. The user-facing instructions are in the public README, "Video and music previews (VLC)".
 
 ### Document previews
 

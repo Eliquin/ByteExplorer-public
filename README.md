@@ -78,11 +78,30 @@ cd ByteExplorer-public
 dotnet run --project ByteExplorer.csproj -c Release
 ```
 
-- **Windows:** video and music previews use the bundled VLC libraries. A Windows installer can be built with
-  `Tools/Installer/build-installer.ps1` (Inno Setup 6); it installs per user or for everyone and has no updater.
-- **Linux:** install VLC (`libvlc`) for video and music previews; `bsdtar` or `7z` for 7z/RAR archives; `pdftoppm`
+- **Windows:** everything is included, VLC's libraries for video and music previews too. A Windows installer can be
+  built with `Tools/Installer/build-installer.ps1` (Inno Setup 6); it installs per user or for everyone and has no updater.
+- **Linux:** install VLC for video and music previews (see below); `bsdtar` or `7z` for 7z/RAR archives; `pdftoppm`
   (poppler-utils) for PDF previews. Everything else works without them.
-- **macOS:** install VLC.app for video and music previews.
+- **macOS:** install VLC for video and music previews (see below).
+
+### Video and music previews (VLC)
+
+ByteExplorer plays video and music in its preview pane with VLC's engine (libvlc 3). On **Windows** it comes with the
+app and there is nothing to do. On **Linux and macOS** ByteExplorer uses the VLC installed on the computer:
+
+| System | Install | Notes |
+|---|---|---|
+| Ubuntu, Debian, Mint | `sudo apt install vlc` | Install the full `vlc` package: `libvlc5` alone leaves out the codec and output plugins, and nothing plays. |
+| Fedora | `sudo dnf install vlc` from [RPM Fusion](https://rpmfusion.org/Configuration) | Fedora's own build can't play some common formats (H.264, HEVC); RPM Fusion's plays them. |
+| Arch, Manjaro | `sudo pacman -S vlc` | |
+| openSUSE | `sudo zypper install vlc` (Packman's build for all formats) | |
+| macOS | Download VLC from [videolan.org](https://www.videolan.org/vlc/), or `brew install --cask vlc` | VLC must be in **`/Applications`** (`/Applications/VLC.app`), where ByteExplorer looks for it. |
+
+- **Not the Flatpak or Snap.** VLC installed from Flathub or the Snap Store stays inside its own sandbox, where other
+  apps can't use it. Install your distribution's package as shown above (it can sit next to the Flatpak or Snap).
+- Restart ByteExplorer after installing VLC.
+- Without VLC, ByteExplorer works normally: only video and music previews are unavailable (and their length and
+  artist details), and a line in the log says libvlc could not be loaded.
 
 New versions are published here on GitHub. ByteExplorer never updates itself: you update by downloading a new release.
 

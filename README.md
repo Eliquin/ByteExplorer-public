@@ -9,12 +9,13 @@
 Tabs, split view, instant search, tags, smart views, and safe file operations you can undo,<br/>
 in a window you can make your own.
 
+☕ **[Support ByteExplorer on Ko-fi](https://ko-fi.com/eliquin081)**
+
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-brightgreen.svg)](LICENSE)
 ![.NET 9](https://img.shields.io/badge/.NET-9-512BD4.svg)
 ![Avalonia 11](https://img.shields.io/badge/Avalonia-11.3-8B44AC.svg)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20(experimental)-0067C0.svg)
 ![No telemetry](https://img.shields.io/badge/telemetry-none-success.svg)
-[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support%20ByteExplorer-FF5E5B.svg?logo=ko-fi&logoColor=white)](https://ko-fi.com/eliquin081)
 
 <img src="docs/screenshots/modern-light-timeline.png" alt="ByteExplorer, Modern layout, Timeline view" width="900"/>
 

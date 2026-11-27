@@ -68,9 +68,27 @@ in a window you can make your own.
 | ![Modern layout, Photos lens, tabs on the left](docs/screenshots/modern-light-lens-tabs-left.png)<br/><sub>The **Photos lens** with its time river, tabs on the left</sub> | ![Trove layout, Details view with tags](docs/screenshots/trove-details.png)<br/><sub>**Trove** layout, Details view with tags</sub> |
 | ![Folio layout, Columns view](docs/screenshots/folio-columns.png)<br/><sub>**Folio** layout, Columns view</sub> | ![Settings window](docs/screenshots/settings.png)<br/><sub>**Settings**</sub> |
 
-## Get started
+## Download
 
-ByteExplorer needs the [.NET 9 runtime](https://dotnet.microsoft.com/download/dotnet/9.0). To build and run it from source:
+Ready-to-run builds are on the **[Releases page](https://github.com/Eliquin/ByteExplorer-public/releases/latest)**.
+Nothing else to install: .NET is included.
+
+| System | Download | How to start |
+|---|---|---|
+| **Windows 10/11 (64-bit)** | `ByteExplorer-<version>-win-x64.zip` | Unzip it anywhere (e.g. `Documents\ByteExplorer`) and run `ByteExplorer.exe`. VLC for video and music previews is included. |
+| **Linux (64-bit)** | `ByteExplorer-<version>-linux-x64.tar.gz` | `tar -xzf ByteExplorer-*-linux-x64.tar.gz`, then run `./ByteExplorer` in the extracted folder. Install VLC for video and music previews (see below). |
+
+- **Windows SmartScreen:** the program isn't code-signed yet, so the first start may show "Windows protected your PC".
+  Click **More info**, then **Run anyway**.
+- `SHA256SUMS.txt` on each release lets you check the downloads (`sha256sum -c SHA256SUMS.txt`, or
+  `Get-FileHash` in PowerShell).
+- A macOS build isn't published yet; on a Mac, build it from source as below.
+- `vlc-<version>.tar.xz` on a release is VLC's source code, published because the Windows build includes VLC
+  (its license asks for that). You don't need it to use ByteExplorer.
+
+## Build from source
+
+Building needs the [.NET 9 SDK](https://dotnet.microsoft.com/download/dotnet/9.0) (or a newer one). To build and run it:
 
 ```bash
 git clone https://github.com/Eliquin/ByteExplorer-public.git
@@ -103,7 +121,8 @@ app and there is nothing to do. On **Linux and macOS** ByteExplorer uses the VLC
 - Without VLC, ByteExplorer works normally: only video and music previews are unavailable (and their length and
   artist details), and a line in the log says libvlc could not be loaded.
 
-New versions are published here on GitHub. ByteExplorer never updates itself: you update by downloading a new release.
+New versions are published on the [Releases page](https://github.com/Eliquin/ByteExplorer-public/releases). ByteExplorer
+never updates itself: you update by downloading a new release.
 
 ## Under the hood
 

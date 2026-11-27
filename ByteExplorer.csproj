@@ -37,6 +37,17 @@
     <DebugType>pdbonly</DebugType>
   </PropertyGroup>
 
+  <!-- VideoLAN.LibVLC.Windows copies Windows' libvlc (x64 and x86, ~200 MB) into every build. A publish for Linux or
+       macOS gets none of it (those use the system's VLC), and a win-x64 publish only the 64-bit copy the app loads.
+       Plain builds without a runtime (dotnet build/run, tests) keep the package's default. -->
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' != '' And !$(RuntimeIdentifier.StartsWith('win'))">
+    <VlcWindowsX64Enabled>false</VlcWindowsX64Enabled>
+    <VlcWindowsX86Enabled>false</VlcWindowsX86Enabled>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
+    <VlcWindowsX86Enabled>false</VlcWindowsX86Enabled>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="11.3.22" />
     <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />

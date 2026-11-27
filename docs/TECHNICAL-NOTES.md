@@ -31,6 +31,11 @@ has **no automatic updates and no update check**, and it never connects to the i
 HTTP or socket code, no telemetry, and its usage history (Home's "Your activity") stays in its data folder. The only
 connections it makes are the ones you ask for (opening a network location, a phone over USB) and a pipe on your own
 computer through which a second start hands a folder to the running window. Contributions must keep it that way.
+The two links in Settings › About (the project page and the Ko-fi page, `SettingsViewModel.ProjectUrl`/`SupportUrl`)
+open in the browser only when clicked.
+
+Donations: the author's Ko-fi page is <https://ko-fi.com/eliquin081>; `.github/FUNDING.yml` shows it as the
+repository's "Sponsor" button.
 
 ### Publishing a release
 

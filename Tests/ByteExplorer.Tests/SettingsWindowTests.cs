@@ -255,6 +255,11 @@ namespace ByteExplorer.Tests
                 Save(settingsWindow, "settings-file.png");
                 vm.ShowPage("about");
                 await Pump(5);
+                // The author's note links the project and the Ko-fi page (both open only when clicked).
+                var note = vm.Pages.Single(p => p.Key == "about").Items.OfType<AuthorNoteSetting>().Single();
+                Assert.True(note.HasSupport);
+                Assert.Equal("Support ByteExplorer on Ko-fi", note.SupportText);
+                Assert.Equal("https://ko-fi.com/eliquin081", SettingsViewModel.SupportUrl);
                 Save(settingsWindow, "settings-about.png");
 
                 settingsWindow.Close();

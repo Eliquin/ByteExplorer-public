@@ -1210,7 +1210,9 @@ namespace ByteExplorer.ViewModels.Settings
                         "ByteExplorer was coded with love, in C#, one evening at a time. I wanted a file explorer that is fast, beautiful and simply gets out of your way, so I set out to build the one I always dreamed of. Every view, every shortcut and every little detail is here because I wanted it to feel just right. Thank you for using it; I hope it makes your days with files a little brighter.",
                         "— Eliquin",
                         ProjectUrl.Replace("https://", string.Empty, StringComparison.Ordinal),
-                        new RelayCommand(_ => OpenProjectPage())) { Keywords = "author thanks github project source code repository love" },
+                        new RelayCommand(_ => OpenLink(ProjectUrl)),
+                        "Support ByteExplorer on Ko-fi",
+                        new RelayCommand(_ => OpenLink(SupportUrl))) { Keywords = "author thanks github project source code repository love donate donation support ko-fi kofi coffee tip" },
                     new InfoSetting("Logs", "Diagnostic logs, useful when reporting a problem", Symbol.DocumentText, () => Path.Combine(AppPaths.DataDirectory, "logs"))
                     {
                         ButtonText = "Open", Command = new RelayCommand(_ => _host?.RevealInFileList(Path.Combine(AppPaths.DataDirectory, "logs"), null)), Keywords = "log diagnostics",
@@ -1276,18 +1278,24 @@ namespace ByteExplorer.ViewModels.Settings
         /// <summary>The project's home on GitHub (source code, releases, issues).</summary>
         internal const string ProjectUrl = "https://github.com/Eliquin/ByteExplorer-public";
 
-        /// <summary>Opens the project's page in the browser: only when clicked (the app never goes online on its own).</summary>
-        private void OpenProjectPage()
+        /// <summary>The author's Ko-fi page, for those who want to support the project.</summary>
+        internal const string SupportUrl = "https://ko-fi.com/eliquin081";
+
+        /// <summary>
+        /// Opens a web page (the project, the Ko-fi page) in the browser: only when clicked, the app never goes online on
+        /// its own. Without a browser the link is copied instead.
+        /// </summary>
+        private void OpenLink(string url)
         {
             try
             {
-                ShellLauncher.Open(ProjectUrl);
+                ShellLauncher.Open(url);
             }
             catch (Exception ex)
             {
-                Logger.Warning(ex, "Could not open {Url}", ProjectUrl);
-                _window?.CopyTextAsync(ProjectUrl).Forget("copy the project link");
-                _window?.ShowMessageAsync("Could not open the browser", "The link was copied instead:\n" + ProjectUrl).Forget("SettingsViewModel.OpenProjectPage");
+                Logger.Warning(ex, "Could not open {Url}", url);
+                _window?.CopyTextAsync(url).Forget("copy the link");
+                _window?.ShowMessageAsync("Could not open the browser", "The link was copied instead:\n" + url).Forget("SettingsViewModel.OpenLink");
             }
         }
 

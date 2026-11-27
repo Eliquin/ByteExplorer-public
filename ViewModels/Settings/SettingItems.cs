@@ -470,13 +470,16 @@ namespace ByteExplorer.ViewModels.Settings
     /// <summary>The About page's note from the author: a heading, a paragraph, a signature and a link (the project's page).</summary>
     public sealed class AuthorNoteSetting : SettingItem
     {
-        public AuthorNoteSetting(string title, string message, string signature, string linkText, ICommand linkCommand)
+        public AuthorNoteSetting(string title, string message, string signature, string linkText, ICommand linkCommand,
+                                 string supportText = null, ICommand supportCommand = null)
             : base(title, message, Symbol.Heart)
         {
             Message = message;
             Signature = signature;
             LinkText = linkText;
             LinkCommand = linkCommand;
+            SupportText = supportText;
+            SupportCommand = supportCommand;
         }
 
         public string Message { get; }
@@ -486,6 +489,14 @@ namespace ByteExplorer.ViewModels.Settings
         public string LinkText { get; }
 
         public ICommand LinkCommand { get; }
+
+        /// <summary>The donation link's caption ("Support ByteExplorer on Ko-fi"); null for none.</summary>
+        public string SupportText { get; }
+
+        /// <summary>Opens the donation page in the browser, only when clicked.</summary>
+        public ICommand SupportCommand { get; }
+
+        public bool HasSupport => !string.IsNullOrEmpty(SupportText) && SupportCommand != null;
     }
 
     /// <summary>A titled group of cards on a page ("Panels", "Navigation tree"…).</summary>

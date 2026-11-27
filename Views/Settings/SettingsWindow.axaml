@@ -399,6 +399,15 @@
                                 <TextBlock Text="{Binding LinkText}" FontSize="13" Foreground="{DynamicResource SelectedAccent}" TextDecorations="Underline" VerticalAlignment="Center"/>
                             </StackPanel>
                         </Button>
+                        <!-- Ko-fi: a link like the one above, opened only when clicked. -->
+                        <Button Classes="noteLink" Command="{Binding SupportCommand}" Cursor="Hand" HorizontalAlignment="Left" Padding="0"
+                                Background="Transparent" BorderThickness="0" IsVisible="{Binding HasSupport}"
+                                ToolTip.Tip="Open the Ko-fi page in your browser">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <ic:SymbolIcon Symbol="DrinkCoffee" FontSize="14" Foreground="{DynamicResource SelectedAccent}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding SupportText}" FontSize="13" Foreground="{DynamicResource SelectedAccent}" TextDecorations="Underline" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
                     </StackPanel>
                 </Grid>
             </Border>

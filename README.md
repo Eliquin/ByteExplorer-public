@@ -14,6 +14,7 @@ in a window you can make your own.
 ![Avalonia 11](https://img.shields.io/badge/Avalonia-11.3-8B44AC.svg)
 ![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20(experimental)-0067C0.svg)
 ![No telemetry](https://img.shields.io/badge/telemetry-none-success.svg)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support%20ByteExplorer-FF5E5B.svg?logo=ko-fi&logoColor=white)](https://ko-fi.com/eliquin081)
 
 <img src="docs/screenshots/modern-light-timeline.png" alt="ByteExplorer, Modern layout, Timeline view" width="900"/>
 
@@ -148,6 +149,12 @@ The details of every feature, how it works and how the code is organized are in
 
 Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build, test and
 send a change.
+
+## Support ByteExplorer
+
+ByteExplorer is free, with no ads, accounts or paid features. If it makes your days with files a little better and
+you'd like to say thanks, you can **[buy me a coffee on Ko-fi](https://ko-fi.com/eliquin081)** ☕. It's entirely
+optional, and a star on GitHub, a bug report or a kind word helps just as much.
 
 ## License
 

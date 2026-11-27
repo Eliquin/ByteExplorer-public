@@ -131,7 +131,8 @@ namespace ByteExplorer.Icons
         CalendarMonth,
         Sparkle,
         Timeline,
-        Heart
+        Heart,
+        DrinkCoffee
     }
 
     /// <summary>Outline or solid style of an icon.</summary>
@@ -271,6 +272,7 @@ namespace ByteExplorer.Icons
             0xF1A48, // Sparkle
             0xF04C0, // Timeline
             0xF0268, // Heart
+            0xF0A80, // DrinkCoffee
         };
 
         private static readonly int[] Filled =
@@ -396,6 +398,7 @@ namespace ByteExplorer.Icons
             0xF1A49, // Sparkle
             0xF04C1, // Timeline
             0xF0269, // Heart
+            0xF0A81, // DrinkCoffee
         };
 
         private static readonly string[] RegularText = Build(Regular);

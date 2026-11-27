@@ -1,0 +1,38 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<Application xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             x:Class="ByteExplorer.App"
+             RequestedThemeVariant="Default">
+    <!--
+        The window to show is chosen at run time from the persisted Appearance.WindowLayout setting (App.axaml.cs), so
+        there is no StartupUri equivalent here. Fluent supplies the base control templates; the app's own palette and
+        styles (Themes/) sit on top and are merged at Application level so popups and context menus, which are separate
+        visual roots, resolve the same keys as the window.
+    -->
+    <Application.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceInclude Source="avares://ByteExplorer/Themes/Palette.axaml"/>
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Application.Resources>
+
+    <Application.Styles>
+        <FluentTheme/>
+        <StyleInclude Source="avares://Avalonia.Controls.DataGrid/Themes/Fluent.xaml"/>
+        <StyleInclude Source="avares://ByteExplorer/Themes/Styles.axaml"/>
+        <StyleInclude Source="avares://ByteExplorer/Themes/TabStyles.axaml"/>
+        <!-- Screen readers: an icon-only button is named by its tooltip ("Back", "New tab"), which every one of them has;
+             without this Narrator says only "button". A name set on the button itself wins (a local value). -->
+        <Style Selector="Button">
+            <Setter Property="AutomationProperties.Name" Value="{Binding $self.(ToolTip.Tip)}"/>
+        </Style>
+        <Style Selector="ToggleButton">
+            <Setter Property="AutomationProperties.Name" Value="{Binding $self.(ToolTip.Tip)}"/>
+        </Style>
+    </Application.Styles>
+</Application>

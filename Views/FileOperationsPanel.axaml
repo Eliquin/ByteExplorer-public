@@ -1,0 +1,102 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The file operations panel: one card per copy, move, delete, undo or archive job that takes longer than a moment,
+    with the current item, a progress bar, "1.2 GB of 3.4 GB", speed, time left, and pause/resume and cancel. Shown
+    over the file list's bottom-right corner while any job is listed (never over the details panel, which may host a
+    native video surface), and collapsible to its header. DataContext: the app's FileOperationQueue.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:ops="using:ByteExplorer.ViewModels.FileOperations"
+             x:Class="ByteExplorer.Views.FileOperationsPanel"
+             x:DataType="ops:FileOperationQueue"
+             IsVisible="{Binding HasShownJobs}">
+    <UserControl.Styles>
+        <Style Selector="ProgressBar.op">
+            <Setter Property="Height" Value="4"/>
+            <Setter Property="MinHeight" Value="4"/>
+            <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="Minimum" Value="0"/>
+            <Setter Property="Maximum" Value="1"/>
+            <Setter Property="Background" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+        <Style Selector="ProgressBar.op.problem">
+            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+        </Style>
+        <Style Selector="ProgressBar.op.paused">
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+        </Style>
+        <Style Selector="Button.cmd.op">
+            <Setter Property="Width" Value="26"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="5"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Border Width="380" Padding="12,10,12,12" CornerRadius="10"
+            Background="{DynamicResource MenuBrush}" BorderBrush="{DynamicResource MenuBorderBrush}" BorderThickness="1"
+            BoxShadow="0 6 20 0 #40000000">
+        <StackPanel>
+            <Grid ColumnDefinitions="*,Auto,Auto">
+                <TextBlock Text="File operations" FontWeight="SemiBold" FontSize="13" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                <Button Grid.Column="1" Classes="cmd" Padding="8,3" FontSize="12" Content="Clear" Command="{Binding ClearFinishedCommand}" ToolTip.Tip="Remove finished operations"/>
+                <Button Grid.Column="2" Classes="cmd op" x:Name="CollapseButton" Click="OnCollapseClick" ToolTip.Tip="Collapse">
+                    <ic:SymbolIcon x:Name="CollapseIcon" Symbol="ChevronDown" FontSize="13"/>
+                </Button>
+            </Grid>
+
+            <ScrollViewer x:Name="JobsScroller" MaxHeight="340" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding Jobs}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="ops:FileOperationJob">
+                            <Border IsVisible="{Binding IsShown}" Margin="0,10,0,0" Padding="0,10,0,0"
+                                    BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                                    <TextBlock Text="{Binding Title}" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
+                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center" ToolTip.Tip="{Binding Title}"/>
+                                    <!-- Finished with failures: send the failed items again (after fixing what stopped them). -->
+                                    <Button Grid.Column="1" Classes="cmd" Padding="8,3" FontSize="12" Margin="6,0,0,0" Content="Retry failed"
+                                            Command="{Binding RetryCommand}" IsVisible="{Binding CanRetry}"
+                                            ToolTip.Tip="Try the items that failed again"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="2" Margin="6,0,0,0" IsVisible="{Binding !IsFinished}">
+                                        <Button Classes="cmd op" Command="{Binding PauseCommand}" IsVisible="{Binding !IsPaused}" ToolTip.Tip="Pause">
+                                            <ic:SymbolIcon Symbol="Pause" FontSize="13"/>
+                                        </Button>
+                                        <Button Classes="cmd op" Command="{Binding ResumeCommand}" IsVisible="{Binding IsPaused}" ToolTip.Tip="Resume">
+                                            <ic:SymbolIcon Symbol="Play" FontSize="13"/>
+                                        </Button>
+                                        <Button Classes="cmd op" Command="{Binding CancelCommand}" ToolTip.Tip="Cancel">
+                                            <ic:SymbolIcon Symbol="Dismiss" FontSize="13"/>
+                                        </Button>
+                                    </StackPanel>
+
+                                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding CurrentItem}" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                               TextTrimming="CharacterEllipsis" Margin="0,2,0,0" IsVisible="{Binding !IsFinished}"/>
+
+                                    <ProgressBar Grid.Row="2" Grid.ColumnSpan="2" Classes="op" Margin="0,7,0,6"
+                                                 Classes.problem="{Binding HasProblems}" Classes.paused="{Binding IsPaused}"
+                                                 Value="{Binding Fraction}" IsIndeterminate="{Binding IsIndeterminate}"/>
+
+                                    <Grid Grid.Row="3" Grid.ColumnSpan="2" ColumnDefinitions="*,Auto">
+                                        <TextBlock Text="{Binding DetailText}" FontSize="11.5" Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis"/>
+                                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding SpeedText}" FontSize="11.5" Foreground="{DynamicResource TextSecondary}"/>
+                                            <TextBlock Text="{Binding RemainingText}" FontSize="11.5" Foreground="{DynamicResource TextSecondary}"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+        </StackPanel>
+    </Border>
+</UserControl>

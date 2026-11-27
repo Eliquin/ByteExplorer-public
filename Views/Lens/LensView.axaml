@@ -1,0 +1,137 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:lens="using:ByteExplorer.ViewModels.Lens"
+             xmlns:search="using:ByteExplorer.ViewModels.Search"
+             xmlns:lensv="using:ByteExplorer.Views.Lens"
+             x:Class="ByteExplorer.Views.Lens.LensView"
+             x:DataType="lens:LensViewModel"
+             Background="{DynamicResource ContentBrush}">
+    <!--
+        A lens (left panel › Lens): its title and a filter at the top, the files newest first in time groups, and the time
+        river on the right, one bar per month (then per year), to see when things happened and jump there.
+    -->
+    <UserControl.Styles>
+        <Style Selector="ListBox#Rows">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+        </Style>
+        <Style Selector="ListBox#Rows ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Margin" Value="12,0,12,0"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="FocusAdorner" Value="{x:Null}"/>
+        </Style>
+        <Style Selector="ListBox#Rows ListBoxItem:focus-visible">
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <!-- Headings are not selectable and show no hover. -->
+        <Style Selector="ListBox#Rows ListBoxItem.heading">
+            <Setter Property="IsHitTestVisible" Value="False"/>
+            <Setter Property="Focusable" Value="False"/>
+        </Style>
+        <Style Selector="Button.riverBar">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        <Style Selector="Button.riverBar:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="Button.riverBar Border.bar">
+            <Setter Property="Background" Value="{DynamicResource BorderLight}"/>
+        </Style>
+        <Style Selector="Button.riverBar.current Border.bar">
+            <Setter Property="Background" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+        <Style Selector="Button.riverBar TextBlock.month">
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+        </Style>
+        <Style Selector="Button.riverBar.current TextBlock.month">
+            <Setter Property="Foreground" Value="{DynamicResource SelectedAccent}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,*">
+        <!-- Title, what the lens is, how many, and a filter. -->
+        <Border Grid.ColumnSpan="2" Padding="24,14,16,14" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto">
+                <ic:SymbolIcon Symbol="{Binding Icon}" FontSize="22" Foreground="{DynamicResource SelectedAccent}" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                    <TextBlock x:Name="TitleText" Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                    <TextBlock Text="{Binding Description}" FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="0,2,0,0"/>
+                </StackPanel>
+                <TextBlock Grid.Column="3" x:Name="SummaryText" Text="{Binding Summary}" FontSize="12" Foreground="{DynamicResource TextMuted}"
+                           VerticalAlignment="Center" Margin="0,0,14,0"/>
+                <Border Grid.Column="4" Width="280" Height="34" CornerRadius="8" Background="{DynamicResource FieldBrush}"
+                        BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" VerticalAlignment="Center">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <ic:SymbolIcon Symbol="Filter" FontSize="14" Foreground="{DynamicResource IconGray}" Margin="10,0,6,0" VerticalAlignment="Center"/>
+                        <TextBox Grid.Column="1" x:Name="FilterBox" Classes="bare" Text="{Binding FilterText, Mode=TwoWay}" FontSize="13"
+                                 Watermark="Filter: words, ext:pdf, size:&gt;10mb" VerticalAlignment="Center" Margin="0,0,8,0"
+                                 ToolTip.Tip="Narrow this lens with search words or filters"/>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <!-- The files, in time groups. -->
+        <Panel Grid.Row="1">
+            <ListBox x:Name="Rows" ItemsSource="{Binding Rows}" SelectionMode="Multiple" Padding="0,4,0,12"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.DataTemplates>
+                    <DataTemplate DataType="lens:LensGroupHeader">
+                        <lensv:LensRowView Height="40"/>
+                    </DataTemplate>
+                    <DataTemplate DataType="search:SearchResultRow">
+                        <lensv:LensRowView Height="36" ToolTip.Tip="{Binding ToolTip}"/>
+                    </DataTemplate>
+                </ListBox.DataTemplates>
+            </ListBox>
+            <TextBlock x:Name="EmptyMessage" Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" TextWrapping="Wrap" MaxWidth="420"
+                       TextAlignment="Center" HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="14"
+                       Foreground="{DynamicResource TextSecondary}"/>
+            <TextBlock Text="Looking through your drives…" IsVisible="{Binding IsLoading}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                       FontSize="14" Foreground="{DynamicResource TextSecondary}"/>
+        </Panel>
+
+        <!-- The time river: one bar per month, then per year; click one to jump there. -->
+        <Border Grid.Row="1" Grid.Column="1" Width="104" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1,0,0,0" Padding="6,12,8,12">
+            <DockPanel>
+                <TextBlock DockPanel.Dock="Top" Text="TIME" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMuted}"
+                           HorizontalAlignment="Center" Margin="0,0,0,10"/>
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <ItemsControl x:Name="River" ItemsSource="{Binding River}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="lens:LensRiverBucket">
+                                <Button Classes="riverBar" Classes.current="{Binding IsCurrent}" Height="40" Margin="0,1"
+                                        IsEnabled="{Binding HasFiles}" ToolTip.Tip="{Binding Tip}" Tag="{Binding}" Click="OnRiverBarClick">
+                                    <Grid ColumnDefinitions="40,*" VerticalAlignment="Stretch">
+                                        <TextBlock Classes="month" Text="{Binding Label}" FontSize="11" HorizontalAlignment="Right"
+                                                   VerticalAlignment="Center" Margin="0,0,8,0"/>
+                                        <Border Grid.Column="1" Classes="bar" Width="{Binding BarWidth}" HorizontalAlignment="Left" CornerRadius="4" Margin="0,4"/>
+                                    </Grid>
+                                </Button>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </ScrollViewer>
+            </DockPanel>
+        </Border>
+    </Grid>
+</UserControl>

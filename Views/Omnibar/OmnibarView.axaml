@@ -1,0 +1,257 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The omnibar: the address bar, rewritten. At rest it shows where you are as breadcrumbs (folded from the left when
+    the path is long; each separator opens that folder's subfolders; drop files on a segment to copy or move them
+    there; right-click for the folder's menu), a pin to add the folder to Quick access and a button to copy its path. Click the
+    empty part (or Ctrl+L / Alt+D / F4, or type "/" or "~" in the file list) to type: suggestions appear as you type,
+    with the top completion shown faded after the caret (Tab takes it). A thin animated line shows a slow folder load.
+    DataContext: OmnibarViewModel. Code-behind: keyboard, breadcrumb building, dropdowns, drops, focus.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:om="using:ByteExplorer.ViewModels.Omnibar"
+             xmlns:local="using:ByteExplorer.Views.Omnibar"
+             x:Class="ByteExplorer.Views.Omnibar.OmnibarView"
+             x:DataType="om:OmnibarViewModel"
+             Height="32">
+    <UserControl.Styles>
+        <!-- The bar: a field that lights up while typing. -->
+        <Style Selector="Border#Shell">
+            <Setter Property="Background" Value="{DynamicResource FieldBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="Transitions">
+                <Transitions>
+                    <BrushTransition Property="BorderBrush" Duration="0:0:0.15"/>
+                    <BoxShadowsTransition Property="BoxShadow" Duration="0:0:0.2"/>
+                </Transitions>
+            </Setter>
+        </Style>
+        <Style Selector="Border#Shell:pointerover">
+            <Setter Property="BorderBrush" Value="{DynamicResource MenuBorderBrush}"/>
+        </Style>
+        <Style Selector="Border#Shell.editing">
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+            <Setter Property="BoxShadow" Value="0 0 0 3 #404A90D9"/>
+        </Style>
+        <Style Selector="Border#Shell.rejected">
+            <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
+            <Setter Property="BoxShadow" Value="0 0 0 3 #40E81123"/>
+        </Style>
+        <Style Selector="Border#Shell.dropTarget">
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+
+        <!-- Breadcrumb segments and their separators (built in code-behind). -->
+        <Style Selector="Border.crumb">
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Border.crumb:pointerover">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="Border.crumb.dropTarget">
+            <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+        </Style>
+        <Style Selector="Border.crumb.current TextBlock">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+        <Style Selector="Button.crumbChevron">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="3,4"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+        <Style Selector="Button.crumbChevron:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="Button.crumbChevron:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PressedBg}"/>
+        </Style>
+
+        <!-- The loading line: a short bright stroke sweeping along the bottom edge. -->
+        <Style Selector="Canvas#LoadingTrack.active Border#LoadingStroke">
+            <Style.Animations>
+                <Animation Duration="0:0:1.2" IterationCount="Infinite" Easing="SineEaseInOut">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Canvas.Left" Value="-160"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Canvas.Left" Value="2000"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+
+        <!-- Suggestions. -->
+        <Style Selector="ListBox#SuggestionList ListBoxItem">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="ListBox#SuggestionList ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        <Style Selector="ListBox#SuggestionList ListBoxItem Border.row">
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="10,6"/>
+        </Style>
+        <Style Selector="ListBox#SuggestionList ListBoxItem:pointerover Border.row">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="ListBox#SuggestionList ListBoxItem:selected Border.row">
+            <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+        </Style>
+        <Style Selector="Border.keycap">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="5,1"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Border.keycap TextBlock">
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <Border x:Name="Shell" Classes.editing="{Binding IsEditing}" DragDrop.AllowDrop="True" ClipToBounds="True">
+            <Panel>
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <ic:SymbolIcon Symbol="{Binding LocationSymbol}" FontSize="15" Foreground="{DynamicResource IconGray}"
+                                   VerticalAlignment="Center" Margin="10,0,4,0" ToolTip.Tip="{Binding CurrentPathText}"/>
+
+                    <Panel Grid.Column="1">
+                        <!-- At rest: breadcrumbs; a click on the empty part starts typing. -->
+                        <Border x:Name="CrumbArea" Background="Transparent" Cursor="Ibeam" IsVisible="{Binding !IsEditing}">
+                            <local:BreadcrumbPanel x:Name="Crumbs" HorizontalAlignment="Left" VerticalAlignment="Stretch"/>
+                        </Border>
+
+                        <!-- Typing: the text box, with the faded completion drawn behind it. -->
+                        <Panel IsVisible="{Binding IsEditing}" Margin="4,0,8,0">
+                            <TextBlock x:Name="GhostText" VerticalAlignment="Center" FontSize="13" IsHitTestVisible="False"/>
+                            <TextBox x:Name="Input" Classes="bare" FontSize="13" VerticalAlignment="Center"
+                                     Text="{Binding Text, Mode=TwoWay}"
+                                     AutomationProperties.Name="Address and search"/>
+                        </Panel>
+                    </Panel>
+
+                    <!-- At rest: pin to Quick access and copy path. -->
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="0,0,4,0" Spacing="1" IsVisible="{Binding !IsEditing}">
+                        <Button Classes="cmd" Width="26" Height="26" Padding="0" CornerRadius="5" Command="{Binding CopyPathCommand}" ToolTip.Tip="Copy path">
+                            <ic:SymbolIcon Symbol="Copy" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                        </Button>
+                        <Button Classes="cmd" Width="26" Height="26" Padding="0" CornerRadius="5" Command="{Binding TogglePinCommand}"
+                                ToolTip.Tip="Pin to Quick access (Ctrl+D)">
+                            <Panel>
+                                <ic:SymbolIcon Symbol="Pin" FontSize="14" Foreground="{DynamicResource IconGray}" IsVisible="{Binding !IsPinned}"/>
+                                <ic:SymbolIcon Symbol="Pin" IconVariant="Filled" FontSize="14" Foreground="{DynamicResource SelectedAccent}" IsVisible="{Binding IsPinned}"/>
+                            </Panel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Loading line along the bottom edge. -->
+                <Canvas x:Name="LoadingTrack" Classes.active="{Binding IsLoadingVisible}" IsVisible="{Binding IsLoadingVisible}"
+                        Height="2" VerticalAlignment="Bottom" Margin="8,0" ClipToBounds="True" IsHitTestVisible="False">
+                    <Border x:Name="LoadingStroke" Width="140" Height="2" CornerRadius="1" Canvas.Left="-160">
+                        <Border.Background>
+                            <LinearGradientBrush StartPoint="0%,0%" EndPoint="100%,0%">
+                                <GradientStop Offset="0" Color="#004A90D9"/>
+                                <GradientStop Offset="0.5" Color="#FF4A90D9"/>
+                                <GradientStop Offset="1" Color="#004A90D9"/>
+                            </LinearGradientBrush>
+                        </Border.Background>
+                    </Border>
+                </Canvas>
+            </Panel>
+        </Border>
+
+        <!-- Suggestions under the bar. Nothing in it takes focus: the text box keeps typing and arrows. -->
+        <Popup x:Name="SuggestionPopup" PlacementTarget="{Binding #Shell}" Placement="BottomEdgeAlignedLeft" VerticalOffset="6"
+               IsOpen="{Binding IsPopupOpen}" IsLightDismissEnabled="False" OverlayInputPassThroughElement="{Binding #Shell}">
+            <Border x:Name="PopupSurface" Background="{DynamicResource MenuBrush}" BorderBrush="{DynamicResource MenuBorderBrush}" BorderThickness="1"
+                    CornerRadius="10" Padding="6" BoxShadow="0 10 28 0 #50000000" MinWidth="360">
+                <Grid RowDefinitions="Auto,*,Auto">
+                    <Border Grid.Row="0" IsVisible="{Binding HasHint}" Margin="4,2,4,6" Padding="10,6" CornerRadius="6" Background="{DynamicResource HoverBg}">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <ic:SymbolIcon Symbol="ErrorCircle" FontSize="14" Foreground="{DynamicResource DangerBrush}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding HintText}" FontSize="12.5" Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Border>
+
+                    <ListBox Grid.Row="1" x:Name="SuggestionList" ItemsSource="{Binding Suggestions}" SelectedIndex="{Binding SelectedIndex, Mode=TwoWay}"
+                             Background="Transparent" BorderThickness="0" Focusable="False" MaxHeight="440"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <VirtualizingStackPanel/>
+                            </ItemsPanelTemplate>
+                        </ListBox.ItemsPanel>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="om:OmnibarSuggestion">
+                                <StackPanel>
+                                    <TextBlock Text="{Binding Group}" IsVisible="{Binding IsGroupStart}" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextMuted}" Margin="10,8,0,3"/>
+                                    <Border Classes="row" Opacity="{Binding IsActionable, Converter={x:Static local:OmnibarConverters.ActionableOpacity}}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <ic:SymbolIcon Symbol="{Binding Icon}" FontSize="16" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                                <local:HighlightedTextBlock SourceText="{Binding Title}" Highlights="{Binding TitleHighlights}"
+                                                                            HighlightBrush="{DynamicResource SelectedAccent}"
+                                                                            FontSize="13" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Subtitle}" IsVisible="{Binding HasSubtitle}" FontSize="11.5"
+                                                           Foreground="{DynamicResource TextSecondary}" TextTrimming="PrefixCharacterEllipsis"/>
+                                            </StackPanel>
+                                            <Border Grid.Column="2" Classes="keycap" IsVisible="{Binding HasHint}" Margin="10,0,0,0">
+                                                <TextBlock Text="{Binding Hint}"/>
+                                            </Border>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <!-- What the keys do. -->
+                    <Border Grid.Row="2" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0" Margin="4,6,4,0" Padding="6,7,6,2">
+                        <WrapPanel>
+                            <Border Classes="keycap" Margin="0,0,4,0"><TextBlock Text="↑↓"/></Border>
+                            <TextBlock Text="choose" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Border Classes="keycap" Margin="0,0,4,0"><TextBlock Text="Enter"/></Border>
+                            <TextBlock Text="go" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Border Classes="keycap" Margin="0,0,4,0"><TextBlock Text="Tab"/></Border>
+                            <TextBlock Text="complete" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Border Classes="keycap" Margin="0,0,4,0"><TextBlock Text="&gt;"/></Border>
+                            <TextBlock Text="commands" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Border Classes="keycap" Margin="0,0,4,0"><TextBlock Text="?"/></Border>
+                            <TextBlock Text="search" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center" Margin="0,0,12,0"/>
+                            <Border Classes="keycap" Margin="0,0,4,0"><TextBlock Text="Esc"/></Border>
+                            <TextBlock Text="close" FontSize="11" Foreground="{DynamicResource TextMuted}" VerticalAlignment="Center"/>
+                        </WrapPanel>
+                    </Border>
+                </Grid>
+            </Border>
+        </Popup>
+    </Panel>
+</UserControl>

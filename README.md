@@ -1,0 +1,115 @@
+<div align="center">
+
+<img src="Assets/Icon/ByteExplorer-128.png" width="96" alt="ByteExplorer icon"/>
+
+# ByteExplorer
+
+**A fast, beautiful file explorer for Windows, Linux and macOS.**
+
+Tabs, split view, instant search, tags, smart views, and safe file operations you can undo,<br/>
+in a window you can make your own.
+
+[![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-brightgreen.svg)](LICENSE)
+![.NET 9](https://img.shields.io/badge/.NET-9-512BD4.svg)
+![Avalonia 11](https://img.shields.io/badge/Avalonia-11.3-8B44AC.svg)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-0067C0.svg)
+![No telemetry](https://img.shields.io/badge/telemetry-none-success.svg)
+
+<img src="docs/screenshots/modern-light-timeline.png" alt="ByteExplorer, Modern layout, Timeline view" width="900"/>
+
+</div>
+
+## Why ByteExplorer?
+
+- **Fast with huge folders.** Folders with hundreds of thousands of items open and scroll smoothly; only what is on screen is built.
+- **Finds things instantly.** A search index across your drives answers as you type, with filters (`kind:image`, `size:>1gb`, `modified:week`), and can also look **inside files**: text, Word, Excel, PowerPoint, OpenDocument and PDF.
+- **Safe with your files.** Copies are verified and never left half-written, a crash is recovered on the next start, and nearly everything can be undone with **Ctrl+Z** and redone with **Ctrl+Y**.
+- **Yours to shape.** Three window layouts, five left-panel designs, light and dark themes, colors, fonts and backgrounds for each part of the window.
+- **Private by design.** No telemetry, no accounts, no automatic updates. ByteExplorer never connects to the internet on its own.
+
+## Features
+
+### Browse
+- **Tabs** (in the title bar, on top, or as a vertical list) and **split view** with two panes side by side
+- **New windows** (Ctrl+N) that share one search index, one undo history and one copy queue
+- **Views:** Details, List, Tiles, Icons in four sizes, Columns, Timeline and Nexus
+- **Details columns** you choose: date created, dimensions, length, artists, owner, attributes and more
+- **Preview pane** for pictures, video, music, text, and Office and PDF documents
+- **Archives as folders:** ZIP, 7z, RAR, TAR, ISO and more, with "Extract all" and "Extract here"
+- **Phones and cameras** over USB, in This PC and the folder tree
+- A real **Recycle Bin / Trash view**: see where items came from, restore them, empty it
+
+### Organize
+- **Tags** in colors, with sub-tags and comments, shown in every view and searchable with `tag:`
+- **Lens:** smart views over all your drives (Today, This week, Photos, Videos, Music, Documents, Large files, Downloads) with a **time river** to jump through months
+- **Bulk rename** with a live preview: find and replace (regex too), numbering, case, extensions, dates
+- **Password protection:** lock any file or folder into an encrypted `.bxlock` item that opens only with your password
+- **Folder sizes**, counted in the background, shown and sortable like any column
+- **Quick access** pins with names and colors, and recent folders
+
+### Copy and move with confidence
+- A **file operation queue** with progress, speed, time left, pause and cancel
+- **Name clashes** handled your way: replace, skip, keep both, or replace only if newer, for one item or all
+- **Undo and redo** for copy, move, rename, delete, restore and bulk rename
+- **Verified copies**, free-space checks before starting, and recovery after a crash or power loss
+
+### Make it yours
+- **Layouts:** Modern (as Windows 11), Trove (full-height sidebar) and Folio (Mac style)
+- **Left panel designs:** Classic, Quiet labels, Soft cards, Icon headers with guides, Folded chips
+- **Right-click menu:** ByteExplorer's own, the Windows menu with every program's entries, or both with "Show more options"
+- **Default file explorer:** optionally open folders, drives and Win+E in ByteExplorer, and give them back with one switch
+- A **Settings** window with every option, searchable, applied at once
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Modern layout, dark theme, Timeline view](docs/screenshots/modern-dark-timeline.png)<br/><sub>**Modern**, dark theme, Timeline view</sub> | ![Modern layout, dark theme, Details view, tabs in the title bar](docs/screenshots/modern-dark-details-tabs.png)<br/><sub>**Modern**, Details view, tabs in the title bar</sub> |
+| ![Modern layout, Photos lens, tabs on the left](docs/screenshots/modern-light-lens-tabs-left.png)<br/><sub>The **Photos lens** with its time river, tabs on the left</sub> | ![Trove layout, Details view with tags](docs/screenshots/trove-details.png)<br/><sub>**Trove** layout, Details view with tags</sub> |
+| ![Folio layout, Columns view](docs/screenshots/folio-columns.png)<br/><sub>**Folio** layout, Columns view</sub> | ![Settings window](docs/screenshots/settings.png)<br/><sub>**Settings**</sub> |
+
+## Get started
+
+ByteExplorer needs the [.NET 9 runtime](https://dotnet.microsoft.com/download/dotnet/9.0). To build and run it from source:
+
+```bash
+git clone https://github.com/Eliquin/ByteExplorer-public.git
+cd ByteExplorer-public
+dotnet run --project ByteExplorer.csproj -c Release
+```
+
+- **Windows:** video and music previews use the bundled VLC libraries. A Windows installer can be built with
+  `Tools/Installer/build-installer.ps1` (Inno Setup 6); it installs per user or for everyone and has no updater.
+- **Linux:** install VLC (`libvlc`) for video and music previews; `bsdtar` or `7z` for 7z/RAR archives; `pdftoppm`
+  (poppler-utils) for PDF previews. Everything else works without them.
+- **macOS:** install VLC.app for video and music previews.
+
+New versions are published here on GitHub. ByteExplorer never updates itself: you update by downloading a new release.
+
+## Under the hood
+
+ByteExplorer is written in **C#** on **.NET 9** with the **[Avalonia](https://avaloniaui.net/)** UI framework, with
+native code paths for each system (the Windows shell, the Linux desktop's Trash and MIME handlers, macOS volumes).
+More than 600 automated tests cover the views, search, file operations and settings.
+
+The details of every feature, how it works and how the code is organized are in
+**[docs/TECHNICAL-NOTES.md](docs/TECHNICAL-NOTES.md)**.
+
+## Contributing
+
+Bug reports, ideas and pull requests are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for how to build, test and
+send a change.
+
+## License
+
+ByteExplorer is free and open-source software under the **[Mozilla Public License 2.0](LICENSE)**.
+Copyright © 2026 Eliquin and ByteExplorer contributors.
+
+It is built with Avalonia, SkiaSharp, LibVLC, Serilog, the Inter typeface and the Fluent UI System Icons; their
+licenses are listed in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+
+---
+
+<div align="center">
+<sub>Coded with love, in C#. ❤️</sub>
+</div>

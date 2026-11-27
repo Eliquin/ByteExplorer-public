@@ -1,0 +1,418 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The Modern window layout (the WPF build called it "Dark", before there was a light theme): title bar,
+    navigation/address bar, command toolbar, body (navigation pane | file list(s) or search results | details), status
+    bar, toast. A port of the WPF DarkMainWindow.xaml with the same rows, controls and bindings; same MainViewModel. The
+    code-behind is MainWindowBase, shared with the Nemo layout. Differences from the WPF file, all deliberate:
+      * Triggers became style classes and pseudo-classes (Themes/Styles.axaml).
+      * Visibility converters became IsVisible bindings.
+      * Segoe MDL2 glyphs became Fluent icons (the bundled icon font, Icons/), which ship with the app on every OS.
+      * Window chrome is chosen per OS in MainWindowBase.ConfigureChrome: Windows and macOS extend the client area into
+        their native frame (Aero Snap / traffic lights keep working); Linux draws its own frame with resize grips.
+      * The "Network" sidebar row is gone: in the WPF build it was a static row with no click handler (it did nothing).
+      * The Recycle row opens the trash view in the pane (Restore, Delete permanently, Empty) on every system.
+-->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ic="using:ByteExplorer.Icons"
+        xmlns:views="using:ByteExplorer.Views"
+        xmlns:searchv="using:ByteExplorer.Views.Search"
+        xmlns:lensv="using:ByteExplorer.Views.Lens"
+        xmlns:lensvm="using:ByteExplorer.ViewModels.Lens"
+        xmlns:omni="using:ByteExplorer.Views.Omnibar"
+        xmlns:side="using:ByteExplorer.Views.Sidebar"
+        xmlns:tabs="using:ByteExplorer.Views.Tabs"
+        xmlns:vm="using:ByteExplorer.ViewModels"
+        xmlns:infra="using:ByteExplorer.Infrastructure"
+        xmlns:conv="using:ByteExplorer.Infrastructure.Converters"
+        mc:Ignorable="d"
+        x:Class="ByteExplorer.ModernMainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="{Binding WindowTitle}"
+        Icon="avares://ByteExplorer/Assets/Icon/ByteExplorer.ico"
+        Width="1400" Height="800" MinWidth="640" MinHeight="360"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource ContentBrush}"
+        FontFamily="{DynamicResource UiFont}"
+        FontSize="13">
+
+    <Panel>
+        <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" x:Name="FrameBorder">
+            <Grid x:Name="RootGrid" RowDefinitions="32,42,40,*,32">
+
+                <!-- ============ TITLE BAR ============ -->
+                <Grid Grid.Row="0" x:Name="TitleBar" Background="{DynamicResource TitleBarBrush}" ColumnDefinitions="*,Auto">
+                    <StackPanel x:Name="TitleContent" Orientation="Horizontal" VerticalAlignment="Center" Margin="10,0,0,0" IsHitTestVisible="False">
+                        <!-- The app's icon (Assets/Icon), drawn from its 32 px image so it stays sharp on high-DPI screens. -->
+                        <Image x:Name="TitleIcon" Source="avares://ByteExplorer/Assets/Icon/ByteExplorer-32.png" Width="16" Height="16"
+                               RenderOptions.BitmapInterpolationMode="HighQuality" VerticalAlignment="Center"/>
+                        <TextBlock x:Name="TitleText" Text="{Binding WindowTitle}" FontSize="12" Foreground="{DynamicResource TextPrimary}" Margin="8,0,0,0" VerticalAlignment="Center" TextTrimming="PrefixCharacterEllipsis" MaxWidth="700"/>
+                    </StackPanel>
+
+                    <!-- Tabs in the title bar (Tab bar position: Title bar), after the icon. The right margin keeps a strip of
+                         title bar free before the caption buttons whatever the number of tabs: it always moves the window
+                         (and a double click maximizes it). No background: the empty parts are title bar too. -->
+                    <Panel x:Name="TitleBarTabHost" Margin="34,0,72,0"/>
+
+                    <StackPanel Grid.Column="1" x:Name="CaptionButtons" Orientation="Horizontal">
+                        <Button Classes="cmd" Width="46" Height="32" Padding="0" CornerRadius="0" Click="OnMinimizeClick" ToolTip.Tip="Minimize">
+                            <ic:SymbolIcon Symbol="Subtract" FontSize="14"/>
+                        </Button>
+                        <Button x:Name="MaximizeButton" Classes="cmd" Width="46" Height="32" Padding="0" CornerRadius="0" Click="OnMaximizeRestoreClick" ToolTip.Tip="Maximize">
+                            <ic:SymbolIcon x:Name="MaximizeIcon" Symbol="Maximize" FontSize="14"/>
+                        </Button>
+                        <Button Classes="cmd close" Width="46" Height="32" Padding="0" Click="OnCloseClick" ToolTip.Tip="Close">
+                            <ic:SymbolIcon Symbol="Dismiss" FontSize="14"/>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+
+                <!-- ============ NAVIGATION / ADDRESS BAR ============ -->
+                <Border Grid.Row="1" x:Name="AddressBar" Background="{DynamicResource NavBarBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1">
+                    <Grid Margin="12,0,12,0" ColumnDefinitions="Auto,*,4,220">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                            <!-- The application menu (shared with the Nemo layout), left of Back: opens down and to the right. -->
+                            <views:AppMenu x:Name="AppMenu" Placement="BottomEdgeAlignedLeft" HasToolbar="True" HasTitleBarTabs="True" Margin="0,0,6,0"/>
+                            <Button Classes="cmd" Padding="5" Margin="0,0,4,0" Command="{Binding FileListViewModel.NavigateBackCommand}" views:NavigationHistoryMenu.Direction="Back"
+                                    ToolTip.Tip="Back (Alt+Left) — right-click for history">
+                                <ic:SymbolIcon Symbol="ArrowLeft" FontSize="16"/>
+                            </Button>
+                            <Button Classes="cmd" Padding="5" Margin="0,0,4,0" Command="{Binding FileListViewModel.RefreshCommand}" ToolTip.Tip="Refresh (F5)">
+                                <ic:SymbolIcon Symbol="ArrowClockwise" FontSize="16" Foreground="{DynamicResource IconGray}"/>
+                            </Button>
+                            <Button Classes="cmd" Padding="5" Margin="0,0,10,0" Command="{Binding FileListViewModel.NavigateForwardCommand}" views:NavigationHistoryMenu.Direction="Forward"
+                                    ToolTip.Tip="Forward (Alt+Right) — right-click for history">
+                                <ic:SymbolIcon Symbol="ArrowRight" FontSize="16"/>
+                            </Button>
+                            <Button Classes="cmd" Padding="5" Margin="0,0,4,0" Command="{Binding FileListViewModel.NavigateUpCommand}" ToolTip.Tip="Up (Alt+Up)">
+                                <ic:SymbolIcon Symbol="ArrowUp" FontSize="16"/>
+                            </Button>
+                        </StackPanel>
+
+                        <!-- Address: the omnibar (breadcrumbs, typing with suggestions, commands, search). -->
+                        <omni:OmnibarView Grid.Column="1" x:Name="Omnibar" DataContext="{Binding Omnibar}" VerticalAlignment="Center"/>
+
+                        <GridSplitter Grid.Column="2" Background="Transparent" ResizeDirection="Columns" ToolTip.Tip="Drag to resize address bar / search"/>
+
+                        <!-- Global search. -->
+                        <Border Grid.Column="3" Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" Margin="4,0,0,0" CornerRadius="6" Height="30" VerticalAlignment="Center" MinWidth="140">
+                            <Grid ColumnDefinitions="*,Auto,Auto">
+                                <TextBlock Text="{Binding SearchPlaceholder}" Foreground="{DynamicResource TextMuted}" FontSize="13" Margin="10,0,4,0"
+                                           VerticalAlignment="Center" IsHitTestVisible="False"
+                                           IsVisible="{Binding IsSearchPlaceholderVisible}"/>
+                                <TextBox x:Name="GlobalSearchBox" Classes="bare"
+                                         Text="{Binding SearchBoxDisplayText, Mode=TwoWay}"
+                                         IsEnabled="{Binding IsSearchEnabled}"
+                                         FontSize="13" Margin="10,0,4,0" VerticalAlignment="Center"
+                                         ToolTip.Tip="{Binding IndexDetailStatus}"
+                                         KeyDown="OnGlobalSearchKeyDown"/>
+                                <Button Grid.Column="1" Classes="cmd" Padding="4" Margin="0,0,2,0" VerticalAlignment="Center" IsVisible="{Binding IsSearchActive}"
+                                        Command="{Binding Search.ClearCommand}" ToolTip.Tip="Clear search (Esc)">
+                                    <ic:SymbolIcon Symbol="Dismiss" FontSize="12"/>
+                                </Button>
+                                <Border Grid.Column="2" Classes="hover" Width="28" Height="28" Margin="0,0,2,0" CornerRadius="4"
+                                        VerticalAlignment="Center" ToolTip.Tip="{Binding IndexDetailStatus}">
+                                    <Border.ContextMenu>
+                                        <ContextMenu>
+                                            <MenuItem Header="Refresh index" Command="{Binding RefreshIndexCommand}"/>
+                                            <MenuItem Header="Stop indexing" Command="{Binding StopIndexingCommand}"/>
+                                        </ContextMenu>
+                                    </Border.ContextMenu>
+                                    <ic:SymbolIcon Symbol="Search" FontSize="15" Foreground="{Binding IndexIconBrush}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Border>
+
+                <!-- ============ COMMAND TOOLBAR ============ -->
+                <Border x:Name="Toolbar" Grid.Row="2" Background="{DynamicResource CommandBarBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1">
+                    <!-- Left: New, the clipboard and file commands, Sort, Filter, Split view, more options. Right: View. -->
+                    <Grid ColumnDefinitions="*,Auto" Margin="12,0,12,0">
+                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="2">
+                            <!-- New: Folder, Shortcut, Text Document and the system's other kinds (Word, Excel… when installed). -->
+                            <views:NewItemSelector x:Name="NewItemSelectorControl"/>
+                            <Border Width="1" Height="20" Background="{DynamicResource BorderLight}" Margin="6,0"/>
+                            <Button Classes="cmd" Command="{Binding FileListViewModel.CutCommand}" ToolTip.Tip="Cut (Ctrl+X)">
+                                <ic:SymbolIcon Symbol="Cut" FontSize="17"/>
+                            </Button>
+                            <Button Classes="cmd" Command="{Binding FileListViewModel.CopyCommand}" ToolTip.Tip="Copy (Ctrl+C)">
+                                <ic:SymbolIcon Symbol="Copy" FontSize="17"/>
+                            </Button>
+                            <Button Classes="cmd" Command="{Binding FileListViewModel.PasteCommand}" ToolTip.Tip="Paste (Ctrl+V)">
+                                <ic:SymbolIcon Symbol="ClipboardPaste" FontSize="17"/>
+                            </Button>
+                            <Button Classes="cmd" Command="{Binding FileListViewModel.RenameCommand}" ToolTip.Tip="Rename (F2)">
+                                <ic:SymbolIcon Symbol="Rename" FontSize="17"/>
+                            </Button>
+                            <Button Classes="cmd" Command="{Binding FileListViewModel.DeleteCommand}" ToolTip.Tip="Delete (Del)">
+                                <ic:SymbolIcon Symbol="Delete" FontSize="17"/>
+                            </Button>
+                            <Border Width="1" Height="20" Background="{DynamicResource BorderLight}" Margin="6,0"/>
+                            <views:SortSelector x:Name="SortSelectorControl"/>
+                            <views:FilterSelector x:Name="FilterSelectorControl"/>
+                            <Border Width="1" Height="20" Background="{DynamicResource BorderLight}" Margin="6,0"/>
+                            <Button Classes="cmd" Classes.active="{Binding IsSplitViewActive}" Command="{Binding ToggleSplitViewCommand}" ToolTip.Tip="Split view (Ctrl+\)">
+                                <ic:SymbolIcon Symbol="SplitVertical" FontSize="17"/>
+                            </Button>
+                            <views:MoreOptionsSelector x:Name="MoreOptionsSelectorControl"/>
+                        </StackPanel>
+                        <views:ViewModeSelector Grid.Column="1" x:Name="ViewModeSelectorControl" VerticalAlignment="Center"/>
+                    </Grid>
+                </Border>
+
+                <!-- ============ BODY ============ -->
+                <!-- The body: the vertical tab bar docks here at the window's left edge, before the sidebar (Left position). -->
+                <DockPanel Grid.Row="3" x:Name="BodyDock">
+                    <Panel x:Name="LeftTabHost" DockPanel.Dock="Left"/>
+                    <Grid x:Name="BodyGrid" ColumnDefinitions="220,Auto,*,Auto,240">
+
+                        <!-- ===== Left navigation pane ===== -->
+                        <Border Grid.Column="0" x:Name="LeftPanel" Background="{DynamicResource LeftPaneBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,1,0">
+                            <!-- One scroller for the whole panel: every section, the folder tree included, scrolls as a unit (their
+                                 order is a setting, SidebarOrder). The tree is still a virtualizing list: it scrolls with the panel
+                                 and creates only the rows the panel shows (NavigationPaneView.ScrollsWithPanel). -->
+                            <ScrollViewer x:Name="SidebarScroller" ClipToBounds="True" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="SidebarSections" Margin="0,10,0,10">
+                                    <StackPanel side:SidebarOrder.Key="Places">
+                                    <Border Classes="sbDivider" side:SidebarOrder.IsDivider="True"/>
+                                    <Border x:Name="HomeRow" Classes="navRow" Classes.active="{Binding FileListViewModel.IsHomeView}" PointerReleased="OnHomeRowPointerReleased">
+                                        <StackPanel Orientation="Horizontal" Margin="24,0,0,0" VerticalAlignment="Center">
+                                            <ic:SymbolIcon Symbol="Home" FontSize="17" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Home" Margin="10,0,0,0" FontSize="13" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </Border>
+                                    </StackPanel>
+
+                                    <!-- Quick access: pinned places (MainViewModel.Pins). Pin with Ctrl+D, a right-click, or by dragging a
+                                         folder here; drag rows to reorder; right-click a row to rename, color or unpin it. -->
+                                    <StackPanel side:SidebarOrder.Key="QuickAccess">
+                                    <Border Classes="sbDivider" side:SidebarOrder.IsDivider="True"/>
+                                    <side:SidebarSection Header="Quick access" SectionKey="QuickAccess" Icon="Star" Count="{Binding Pins.Items.Count}">
+                                        <side:SidebarSection.HeaderActions>
+                                            <Button Classes="cmd" Padding="4" Command="{Binding TogglePinCommand}" ToolTip.Tip="Pin the current folder (Ctrl+D)">
+                                                <ic:SymbolIcon Symbol="Add" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                            </Button>
+                                        </side:SidebarSection.HeaderActions>
+                                        <side:PinnedAreaView DataContext="{Binding Pins}" Variant="Modern"/>
+                                    </side:SidebarSection>
+                                    </StackPanel>
+
+                                    <!-- Lens: smart views over every drive (the search index): Today, Photos, Large files… A click shows
+                                         the lens in place of the file list, newest first in time groups, with the time river. -->
+                                    <StackPanel side:SidebarOrder.Key="Lens">
+                                    <Border Classes="sbDivider" side:SidebarOrder.IsDivider="True"/>
+                                    <side:SidebarSection Header="Lens" SectionKey="Lens" Icon="Sparkle" Count="{Binding Lens.Lenses.Count}">
+                                        <ItemsControl x:Name="LensRows" ItemsSource="{Binding Lens.Lenses}" Margin="12,0,12,2">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <UniformGrid Columns="2"/>
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="lensvm:LensEntryViewModel">
+                                                    <Border Classes="lensPill" Classes.active="{Binding IsActive}" ToolTip.Tip="{Binding Tooltip}" Tag="{Binding}"
+                                                            PointerReleased="OnLensRowPointerReleased">
+                                                        <Grid ColumnDefinitions="Auto,*" VerticalAlignment="Center">
+                                                            <ic:SymbolIcon Symbol="{Binding Icon}" FontSize="14" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                                                            <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="7,0,0,0" FontSize="12" Foreground="{DynamicResource TextPrimary}"
+                                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                        </Grid>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </side:SidebarSection>
+                                    </StackPanel>
+
+                                    <!-- Recent: the most visited folders, once there is at least one tracked visit. -->
+                                    <StackPanel side:SidebarOrder.Key="Recent" IsVisible="{Binding FileListViewModel.HasSidebarFrequentFolders}">
+                                        <Border Classes="sbDivider" side:SidebarOrder.IsDivider="True"/>
+                                        <side:SidebarSection Header="Recent" SectionKey="Recent" Icon="History" Count="{Binding FileListViewModel.SidebarFrequentFolders.Count}">
+                                            <ItemsControl ItemsSource="{Binding FileListViewModel.SidebarFrequentFolders}">
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:FavoriteFolderRowViewModel">
+                                                        <Border Classes="navRow" ToolTip.Tip="{Binding FullPath}" Tag="{Binding FullPath}" DragDrop.AllowDrop="True"
+                                                                PointerReleased="OnFolderRowPointerReleased">
+                                                            <StackPanel Orientation="Horizontal" Margin="23,0,10,0" VerticalAlignment="Center">
+                                                                <ic:SymbolIcon Symbol="History" FontSize="15" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                                                                <TextBlock Text="{Binding DisplayName}" Margin="10,0,0,0" FontSize="13" Foreground="{DynamicResource TextPrimary}"
+                                                                           VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                        </side:SidebarSection>
+                                    </StackPanel>
+
+                                    <!-- Drives and folders: This PC / volumes, the lazy-loading, virtualized tree. -->
+                                    <StackPanel side:SidebarOrder.Key="Drives">
+                                    <Border Classes="sbDivider" side:SidebarOrder.IsDivider="True"/>
+                                    <!-- "Folded chips" design: the collapsed sections, as chips above the tree (hidden in the other designs). -->
+                                    <side:SidebarChipDock x:Name="SidebarChips" Margin="12,8,6,0"/>
+                                    <Border Classes="sbTreeGap"/>
+                                    <views:NavigationPaneView x:Name="NavigationPane" ScrollsWithPanel="True" DataContext="{Binding NavigationViewModel}"/>
+                                    </StackPanel>
+
+                                    <!-- Tags (under the tree): every tag, filled as items are tagged; click to see a tag's items, drop files to tag them. -->
+                                    <StackPanel side:SidebarOrder.Key="Tags">
+                                    <Border Classes="sbDivider" side:SidebarOrder.IsDivider="True"/>
+                                    <side:SidebarSection Header="Tags" SectionKey="Tags" Icon="Tag" Count="{Binding TagSidebar.Rows.Count}">
+                                        <side:SidebarSection.HeaderActions>
+                                            <Button Classes="cmd" Padding="4" Click="OnNewTagClick" ToolTip.Tip="New tag">
+                                                <ic:SymbolIcon Symbol="Add" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                            </Button>
+                                        </side:SidebarSection.HeaderActions>
+                                        <side:TagsSidebarView x:Name="TagsView" DataContext="{Binding TagSidebar}" Variant="Modern"/>
+                                    </side:SidebarSection>
+                                    </StackPanel>
+
+                                    <!-- Network: saved shared folders (MainViewModel.NetworkLocations); + adds one. -->
+                                    <StackPanel side:SidebarOrder.Key="Network">
+                                    <Border Classes="sbDivider" side:SidebarOrder.IsDivider="True"/>
+                                    <side:SidebarSection Header="Network" SectionKey="Network" Icon="Globe" Count="{Binding NetworkLocations.Items.Count}">
+                                        <side:SidebarSection.HeaderActions>
+                                            <Button Classes="cmd" Padding="4" Command="{Binding AddNetworkLocationCommand}" ToolTip.Tip="Add network location">
+                                                <ic:SymbolIcon Symbol="Add" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                            </Button>
+                                        </side:SidebarSection.HeaderActions>
+                                        <ItemsControl ItemsSource="{Binding NetworkLocations.Items}">
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:SavedLocation">
+                                                    <Border Classes="navRow" Tag="{Binding}" ToolTip.Tip="{Binding Path}" PointerReleased="OnNetworkRowPointerReleased">
+                                                        <StackPanel Orientation="Horizontal" Margin="23,0,10,0" VerticalAlignment="Center">
+                                                            <ic:SymbolIcon Symbol="GlobeDesktop" FontSize="15" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                                                            <TextBlock Text="{Binding Name}" Margin="10,0,0,0" FontSize="13" Foreground="{DynamicResource TextPrimary}"
+                                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </side:SidebarSection>
+                                    </StackPanel>
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Border>
+
+                        <GridSplitter Grid.Column="1" x:Name="LeftSplitter" Width="3" ResizeDirection="Columns"/>
+
+                        <!-- ===== Content: file list(s), or search results ===== -->
+                        <Border Grid.Column="2" x:Name="MainViewHost" Background="{DynamicResource ContentBrush}">
+                            <!-- Tabs: the bar docks above the panes (Top) or beside them (Left, Right); MainWindowBase docks it by the
+                                 setting. Each tab owns its panes: the views below show the selected tab's. -->
+                            <DockPanel x:Name="TabbedArea">
+                                <tabs:TabStripView x:Name="TabStrip" DockPanel.Dock="Top" DataContext="{Binding Tabs}"/>
+                                <Panel>
+                                    <Grid x:Name="PaneGrid" ColumnDefinitions="*,0,0" IsVisible="{Binding ShowsPanes}">
+                                        <views:FileListView Grid.Column="0" x:Name="PrimaryPane" DataContext="{Binding PrimaryFileListViewModel}"/>
+                                        <GridSplitter Grid.Column="1" x:Name="PaneSplitter" Width="3" ResizeDirection="Columns" IsVisible="False"/>
+                                        <!-- Visibility set by UpdateSplitViewColumns: a binding here would resolve against the pane's own DataContext. -->
+                                        <views:FileListView Grid.Column="2" x:Name="SecondaryPane" DataContext="{Binding SecondaryFileListViewModel}" IsVisible="False"/>
+                                    </Grid>
+
+                                    <!-- Global search results (every match, sortable, filterable; see Views/Search). -->
+                                    <searchv:SearchResultsView x:Name="SearchResultsPanel" DataContext="{Binding Search}" IsVisible="{Binding IsActive}"/>
+
+                                    <!-- A lens (left panel › Lens), in place of the file list until a folder is opened (see Views/Lens). -->
+                                    <lensv:LensView x:Name="LensPanel" DataContext="{Binding Lens}" IsVisible="{Binding IsActive}"/>
+
+                                    <!-- File operations: progress, speed, time left, pause and cancel for every running copy, move or delete. -->
+                                    <views:FileOperationsPanel x:Name="OperationsPanel" DataContext="{Binding Operations}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,16" ZIndex="900"/>
+
+                                    <!-- ============ TOAST (greeting / goodbye) ============
+                                                 Over the file list, not the window's corner: the details panel may host a native video
+                                                 surface, and nothing drawn by the window can appear over it. -->
+                                    <Border x:Name="ToastBorder"                         HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,20"
+                                            MaxWidth="320" Padding="16,12" CornerRadius="8"
+                                            Background="{DynamicResource TitleBarBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1"
+                                            Opacity="0" IsHitTestVisible="False" ZIndex="1000"
+                                            BoxShadow="0 4 16 0 #50000000">
+                                        <Border.Transitions>
+                                            <Transitions>
+                                                <DoubleTransition Property="Opacity" Duration="0:0:0.32"/>
+                                                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.32" Easing="CubicEaseOut"/>
+                                            </Transitions>
+                                        </Border.Transitions>
+                                        <Border.RenderTransform>
+                                            <TranslateTransform X="340"/>
+                                        </Border.RenderTransform>
+                                        <!-- A Grid, not a horizontal StackPanel: the text gets a bounded width and wraps within MaxWidth. -->
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <ic:SymbolIcon Grid.Column="0" Symbol="Info" FontSize="20" Foreground="{DynamicResource SelectedAccent}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="1" x:Name="ToastText" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </Panel>
+                            </DockPanel>
+                        </Border>
+
+                        <GridSplitter Grid.Column="3" x:Name="DetailsSplitter" Width="3" ResizeDirection="Columns"/>
+
+                        <!-- ===== Details panel ===== -->
+                        <Border Grid.Column="4" x:Name="DetailsPanel" Background="{DynamicResource LeftPaneBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1,0,0,0">
+                            <views:DetailsPaneView x:Name="DetailsPane"/>
+                        </Border>
+                    </Grid>
+                </DockPanel>
+
+                <!-- ============ STATUS BAR ============ -->
+                <Border Grid.Row="4" x:Name="StatusBar" Background="{DynamicResource StatusBarBrush}">
+                    <Grid Margin="10,0,14,0" ColumnDefinitions="Auto,*,Auto">
+                        <Button Classes="cmd" Padding="3" Margin="0,0,8,0" Click="OnToggleLeftPanelClick" ToolTip.Tip="Show/hide navigation pane">
+                            <ic:SymbolIcon Symbol="PanelLeft" FontSize="14" Foreground="{DynamicResource IconGray}"/>
+                        </Button>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="14">
+                            <TextBlock Text="{Binding FileListViewModel.StatusText}" IsVisible="{Binding !FileListViewModel.IsLoading}"
+                                       FontSize="11.5" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Text="Loading…" IsVisible="{Binding FileListViewModel.IsLoading}"
+                                       FontSize="11.5" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                            <TextBlock Text="{Binding FileListViewModel.SelectionSummaryText}" FontSize="11.5" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Border Width="160" Height="22" CornerRadius="4" Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                <Grid ColumnDefinitions="Auto,*">
+                                    <ic:SymbolIcon Symbol="Filter" FontSize="12" Foreground="{DynamicResource IconGray}" Margin="7,0,4,0" VerticalAlignment="Center"/>
+                                    <TextBox Grid.Column="1" Classes="bare" Text="{Binding FileListViewModel.FilterText, Mode=TwoWay}"
+                                             FontSize="11.5" Margin="0,0,8,0" VerticalAlignment="Center" Watermark="Filter"
+                                             ToolTip.Tip="Filter items in this folder"/>
+                                </Grid>
+                            </Border>
+                            <Slider Classes="modern" Width="90" Margin="0,0,12,0" VerticalAlignment="Center"
+                                    Minimum="32" Maximum="256" SmallChange="4" LargeChange="16"
+                                    ToolTip.Tip="Zoom (works in every view)"
+                                    Value="{Binding FileListViewModel.IconSize, Mode=TwoWay}"/>
+                            <Button Classes="cmd" Padding="4,2" Margin="0,0,6,0" Click="OnCycleViewClick" ToolTip.Tip="Cycle view">
+                                <ic:SymbolIcon Symbol="Grid" FontSize="15" Foreground="{DynamicResource IconGray}"/>
+                            </Button>
+                            <Button Classes="cmd" Padding="4,2" Click="OnToggleDetailsPanelClick" ToolTip.Tip="Show/hide details pane">
+                                <ic:SymbolIcon Symbol="PanelRight" FontSize="15" Foreground="{DynamicResource IconGray}"/>
+                            </Button>
+                        </StackPanel>
+                    </Grid>
+                </Border>
+
+            </Grid>
+        </Border>
+
+        <!-- Resize grips, used only where the app draws its own frame (Linux). -->
+        <Panel x:Name="ResizeGrips" IsVisible="False">
+            <Border Tag="North" Height="5" VerticalAlignment="Top" Margin="8,0" Background="Transparent" Cursor="TopSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="South" Height="5" VerticalAlignment="Bottom" Margin="8,0" Background="Transparent" Cursor="BottomSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="West" Width="5" HorizontalAlignment="Left" Margin="0,8" Background="Transparent" Cursor="LeftSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="East" Width="5" HorizontalAlignment="Right" Margin="0,8" Background="Transparent" Cursor="RightSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="NorthWest" Width="8" Height="8" HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent" Cursor="TopLeftCorner" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="NorthEast" Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Top" Background="Transparent" Cursor="TopRightCorner" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="SouthWest" Width="8" Height="8" HorizontalAlignment="Left" VerticalAlignment="Bottom" Background="Transparent" Cursor="BottomLeftCorner" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="SouthEast" Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Bottom" Background="Transparent" Cursor="BottomRightCorner" PointerPressed="OnResizeGripPressed"/>
+        </Panel>
+    </Panel>
+</Window>

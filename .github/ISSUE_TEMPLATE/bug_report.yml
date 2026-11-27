@@ -1,0 +1,52 @@
+name: Bug report
+description: Something doesn't work as it should
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Thanks for taking the time to report a problem!
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open ...
+        2. Right-click ...
+        3. ...
+  - type: dropdown
+    id: os
+    attributes:
+      label: System
+      options:
+        - Windows 11
+        - Windows 10
+        - Linux
+        - macOS
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ByteExplorer version
+      description: Shown in Settings › About.
+  - type: dropdown
+    id: layout
+    attributes:
+      label: Window layout
+      options:
+        - Modern
+        - Trove
+        - Folio
+  - type: textarea
+    id: logs
+    attributes:
+      label: Log
+      description: If it crashed or showed an error, paste the end of the newest log file (Settings › About › Logs).
+      render: text

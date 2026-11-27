@@ -1,0 +1,412 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The application menu shared by both layouts: a button with three bars that opens a panel of zoom, Undo and a set of
+    categories (Edit, Go, View, Sort by, Navigation tree, Search index), "show in view" switches, theme and
+    Settings and Refresh. A category's items open in a submenu beside the menu (horizontal, the classic way) or unfold in
+    place (vertical): AppearanceSettings.MenuSubmenuStyle. A port of the WPF NemoToolsMenu, which was a Popup for the same reason this is a Flyout with its own rows
+    rather than a MenuFlyout: full control over the layout (zoom stepper, switches, expanding sections; a popup in a popup
+    is awkward to place and dismiss). Every row binds an existing command or setting; the control holds no state besides
+    which categories are open, and those close again when the menu closes.
+    The Modern layout places it left of Back (opening down and to the right); the Trove layout (formerly Nemo) at the right of its title
+    bar (opening down and to the left): see Placement.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:vm="using:ByteExplorer.ViewModels"
+             xmlns:views="using:ByteExplorer.Views"
+             xmlns:conv="using:ByteExplorer.Infrastructure.Converters"
+             x:Class="ByteExplorer.Views.AppMenu"
+             x:DataType="vm:MainViewModel">
+    <UserControl.Styles>
+        <!-- A labelled switch row: the label stretches, the switch sits at the right edge like the "Show in view" rows. -->
+        <Style Selector="Grid.switchRow">
+            <Setter Property="Margin" Value="12,0,6,0"/>
+            <Setter Property="MinHeight" Value="30"/>
+        </Style>
+        <Style Selector="Grid.switchRow > TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="Grid.switchRow.sub">
+            <Setter Property="Margin" Value="28,0,6,0"/>
+        </Style>
+        <!-- In the horizontal style a category's panel sits in its own submenu: no indentation under a header. -->
+        <Style Selector="StackPanel.cascaded Button.menuRow.sub">
+            <Setter Property="Padding" Value="12,7"/>
+        </Style>
+        <Style Selector="StackPanel.cascaded Grid.switchRow.sub">
+            <Setter Property="Margin" Value="12,0,6,0"/>
+        </Style>
+        <Style Selector="StackPanel.cascaded TextBlock.menuHeader.sub">
+            <Setter Property="Margin" Value="12,6,12,2"/>
+        </Style>
+        <Style Selector="StackPanel.cascaded Border.menuDivider.sub">
+            <Setter Property="Margin" Value="4,4"/>
+        </Style>
+        <Style Selector="StackPanel.cascaded TextBlock.indexStatus">
+            <Setter Property="Margin" Value="12,2,12,4"/>
+        </Style>
+        <Style Selector="TextBlock.menuHeader">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="Margin" Value="12,4,12,4"/>
+        </Style>
+        <Style Selector="TextBlock.menuHeader.sub">
+            <Setter Property="Margin" Value="28,6,12,2"/>
+        </Style>
+        <Style Selector="TextBlock.gesture">
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Button x:Name="TriggerButton" Classes="cmd" Width="30" Height="30" Padding="0" CornerRadius="6" ToolTip.Tip="Menu">
+        <StackPanel Width="16" VerticalAlignment="Center" Spacing="3">
+            <Border Height="2" CornerRadius="1" Background="{DynamicResource TextPrimary}"/>
+            <Border Height="2" CornerRadius="1" Background="{DynamicResource TextPrimary}"/>
+            <Border Height="2" CornerRadius="1" Background="{DynamicResource TextPrimary}"/>
+        </StackPanel>
+        <Button.Flyout>
+            <Flyout Placement="BottomEdgeAlignedRight" FlyoutPresenterClasses="tools" Opening="OnFlyoutOpening" Closed="OnFlyoutClosed">
+                <Panel>
+                <!-- With every category open the panel is taller than a small screen: it scrolls instead of running off. -->
+                <ScrollViewer x:Name="MenuScroller" MaxHeight="720" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                <StackPanel x:Name="MenuPanel" Width="268" x:DataType="vm:MainViewModel">
+                    <!-- Zoom stepper. -->
+                    <Grid ColumnDefinitions="*,*,*" Margin="0,0,0,8">
+                        <Button Grid.Column="0" Classes="menuIcon first" Click="OnZoomOutClick" ToolTip.Tip="Zoom out (Ctrl+-)">
+                            <ic:SymbolIcon Symbol="Subtract" FontSize="14"/>
+                        </Button>
+                        <Border Grid.Column="1" Background="{DynamicResource HoverBg}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1">
+                            <TextBlock Text="{Binding FileListViewModel.IconZoomPercentDisplay}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       FontSize="13" Foreground="{DynamicResource TextPrimary}"/>
+                        </Border>
+                        <Button Grid.Column="2" Classes="menuIcon last" Click="OnZoomInClick" ToolTip.Tip="Zoom in (Ctrl++)">
+                            <ic:SymbolIcon Symbol="Add" FontSize="14"/>
+                        </Button>
+                    </Grid>
+
+                    <Border Classes="menuDivider"/>
+                    <Button Classes="menuRow" Command="{Binding Operations.UndoCommand}" Click="OnActionClick" ToolTip.Tip="Ctrl+Z">
+                        <TextBlock Text="{Binding Operations.UndoText}" TextTrimming="CharacterEllipsis"/>
+                    </Button>
+                    <Button Classes="menuRow" Command="{Binding Operations.RedoCommand}" Click="OnActionClick" ToolTip.Tip="Ctrl+Y">
+                        <TextBlock Text="{Binding Operations.RedoText}" TextTrimming="CharacterEllipsis"/>
+                    </Button>
+                    <Border Classes="menuDivider"/>
+
+                    <!-- ===== Windows and tabs ===== -->
+                    <Button Classes="menuRow" Command="{Binding NewWindowCommand}" Click="OnActionClick">
+                        <Grid ColumnDefinitions="*,Auto"><TextBlock Text="New window"/><TextBlock Grid.Column="1" Classes="gesture" Text="Ctrl+N"/></Grid>
+                    </Button>
+                    <Button Classes="menuRow" Command="{Binding Tabs.NewTabCommand}" Click="OnActionClick">
+                        <Grid ColumnDefinitions="*,Auto"><TextBlock Text="New tab"/><TextBlock Grid.Column="1" Classes="gesture" Text="Ctrl+T"/></Grid>
+                    </Button>
+                    <Button Classes="menuRow" Command="{Binding Tabs.ReopenClosedTabCommand}" Click="OnActionClick">
+                        <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Reopen closed tab"/><TextBlock Grid.Column="1" Classes="gesture" Text="Ctrl+Shift+T"/></Grid>
+                    </Button>
+                    <Border Classes="menuDivider"/>
+
+                    <!-- ===== Edit ===== -->
+                    <Button x:Name="EditHeader" Classes="menuRow" Click="OnSectionClick">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <ic:SymbolIcon Symbol="Rename" FontSize="14" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Column="1" Text="Edit" VerticalAlignment="Center"/>
+                            <ic:SymbolIcon Grid.Column="2" x:Name="EditChevron" Symbol="ChevronDown" FontSize="12" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+                    <StackPanel x:Name="EditPanel" IsVisible="False">
+                        <Button Classes="menuRow sub" Command="{Binding FileListViewModel.NewFolderCommand}" Click="OnActionClick">
+                            <Grid ColumnDefinitions="*,Auto"><TextBlock Text="New folder"/><TextBlock Grid.Column="1" Classes="gesture" Text="Ctrl+Shift+N"/></Grid>
+                        </Button>
+                        <Button Classes="menuRow sub" Content="New text file" Command="{Binding FileListViewModel.NewTextFileCommand}" Click="OnActionClick"/>
+                        <Border Classes="menuDivider sub"/>
+                        <Button Classes="menuRow sub" Command="{Binding FileListViewModel.CutCommand}" Click="OnActionClick">
+                            <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Cut"/><TextBlock Grid.Column="1" Classes="gesture" Text="Ctrl+X"/></Grid>
+                        </Button>
+                        <Button Classes="menuRow sub" Command="{Binding FileListViewModel.CopyCommand}" Click="OnActionClick">
+                            <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Copy"/><TextBlock Grid.Column="1" Classes="gesture" Text="Ctrl+C"/></Grid>
+                        </Button>
+                        <Button Classes="menuRow sub" Command="{Binding FileListViewModel.PasteCommand}" Click="OnActionClick">
+                            <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Paste"/><TextBlock Grid.Column="1" Classes="gesture" Text="Ctrl+V"/></Grid>
+                        </Button>
+                        <Button Classes="menuRow sub" Content="Copy path" Command="{Binding FileListViewModel.CopyPathCommand}" Click="OnActionClick"/>
+                        <Border Classes="menuDivider sub"/>
+                        <Button Classes="menuRow sub" Command="{Binding FileListViewModel.RenameCommand}" Click="OnActionClick">
+                            <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Rename"/><TextBlock Grid.Column="1" Classes="gesture" Text="F2"/></Grid>
+                        </Button>
+                        <Button Classes="menuRow sub" Command="{Binding FileListViewModel.DeleteCommand}" Click="OnActionClick">
+                            <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Delete"/><TextBlock Grid.Column="1" Classes="gesture" Text="Del"/></Grid>
+                        </Button>
+                        <Button Classes="menuRow sub" Command="{Binding FileListViewModel.DeletePermanentCommand}" Click="OnActionClick">
+                            <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Delete permanently"/><TextBlock Grid.Column="1" Classes="gesture" Text="Shift+Del"/></Grid>
+                        </Button>
+                        <Border Classes="menuDivider sub"/>
+                        <Button Classes="menuRow sub" Command="{Binding FileListViewModel.SelectAllCommand}" Click="OnActionClick">
+                            <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Select all"/><TextBlock Grid.Column="1" Classes="gesture" Text="Ctrl+A"/></Grid>
+                        </Button>
+                        <Button Classes="menuRow sub" Content="Invert selection" Command="{Binding FileListViewModel.InvertSelectionCommand}" Click="OnActionClick"/>
+                        <Button Classes="menuRow sub" Command="{Binding FileListViewModel.PropertiesCommand}" Click="OnActionClick">
+                            <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Properties"/><TextBlock Grid.Column="1" Classes="gesture" Text="Alt+Enter"/></Grid>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- ===== Password: the right-click menu's Password submenu for the selection (rows built on opening) ===== -->
+                    <Button x:Name="PasswordHeader" Classes="menuRow" Click="OnSectionClick">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <ic:SymbolIcon Symbol="Password" FontSize="14" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Column="1" Text="Password" VerticalAlignment="Center"/>
+                            <ic:SymbolIcon Grid.Column="2" x:Name="PasswordChevron" Symbol="ChevronDown" FontSize="12" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+                    <StackPanel x:Name="PasswordPanel" IsVisible="False"/>
+
+                    <!-- ===== Go ===== -->
+                    <Button x:Name="GoHeader" Classes="menuRow" Click="OnSectionClick">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <ic:SymbolIcon Symbol="Folder" FontSize="14" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Column="1" Text="Go" VerticalAlignment="Center"/>
+                            <ic:SymbolIcon Grid.Column="2" x:Name="GoChevron" Symbol="ChevronDown" FontSize="12" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+                    <StackPanel x:Name="GoPanel" IsVisible="False">
+                        <Button Classes="menuRow sub" Click="OnGoHomeClick">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ic:SymbolIcon Symbol="Home" FontSize="14" Foreground="{DynamicResource IconGray}"/>
+                                <TextBlock Text="Home"/>
+                            </StackPanel>
+                        </Button>
+                        <Button Classes="menuRow sub" Click="OnGoThisPcClick">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ic:SymbolIcon Symbol="Desktop" FontSize="14" Foreground="{DynamicResource IconGray}"/>
+                                <TextBlock Text="This PC"/>
+                            </StackPanel>
+                        </Button>
+                        <Border Classes="menuDivider sub"/>
+                        <Button Classes="menuRow sub" Command="{Binding FileListViewModel.OpenTerminalCommand}" Click="OnActionClick">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <ic:SymbolIcon Symbol="WindowConsole" FontSize="14" Foreground="{DynamicResource IconGray}"/>
+                                <TextBlock Text="Open in terminal"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                    <Border Classes="menuDivider"/>
+
+                    <!-- ===== View: panels (each remembered across starts), split view, and the layout presets ===== -->
+                    <Button x:Name="ViewHeader" Classes="menuRow" Click="OnSectionClick">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <ic:SymbolIcon Symbol="Grid" FontSize="14" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Column="1" Text="View" VerticalAlignment="Center"/>
+                            <ic:SymbolIcon Grid.Column="2" x:Name="ViewChevron" Symbol="ChevronDown" FontSize="12" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+                    <StackPanel x:Name="ViewOptionsPanel" IsVisible="False">
+                        <TextBlock Classes="menuHeader sub" Text="Panels"/>
+                        <Grid Classes="switchRow sub" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Navigation pane"/>
+                            <ToggleSwitch x:Name="NavigationPaneSwitch" Grid.Column="1" Classes="compact" OnContent="{x:Null}" OffContent="{x:Null}"
+                                          IsChecked="{Binding IsNavigationPaneVisible}" ToolTip.Tip="The left panel: Quick access and the folder tree"/>
+                        </Grid>
+                        <Grid Classes="switchRow sub" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Details pane"/>
+                            <ToggleSwitch x:Name="DetailsPaneSwitch" Grid.Column="1" Classes="compact" OnContent="{x:Null}" OffContent="{x:Null}"
+                                          IsChecked="{Binding IsDetailsPaneVisible}" ToolTip.Tip="The right panel: preview and properties of the selection"/>
+                        </Grid>
+                        <Grid Classes="switchRow sub" ColumnDefinitions="*,Auto" IsVisible="{Binding $parent[views:AppMenu].HasToolbar}">
+                            <TextBlock Text="Toolbar"/>
+                            <ToggleSwitch x:Name="ToolbarSwitch" Grid.Column="1" Classes="compact" OnContent="{x:Null}" OffContent="{x:Null}"
+                                          IsChecked="{Binding IsToolbarVisible}" ToolTip.Tip="The command bar under the address bar"/>
+                        </Grid>
+                        <Grid Classes="switchRow sub" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Status bar"/>
+                            <ToggleSwitch x:Name="StatusBarSwitch" Grid.Column="1" Classes="compact" OnContent="{x:Null}" OffContent="{x:Null}"
+                                          IsChecked="{Binding IsStatusBarVisible}" ToolTip.Tip="The bar at the bottom: item counts and file operations"/>
+                        </Grid>
+                        <Grid Classes="switchRow sub" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Split view"/>
+                            <ToggleSwitch Grid.Column="1" Classes="compact" OnContent="{x:Null}" OffContent="{x:Null}"
+                                          IsChecked="{Binding IsSplitViewActive, Mode=OneWay}" Command="{Binding ToggleSplitViewCommand}"
+                                          ToolTip.Tip="Two folders side by side"/>
+                        </Grid>
+                        <Border Classes="menuDivider sub"/>
+                        <TextBlock Classes="menuHeader sub" Text="Tab bar"/>
+                        <Button Classes="menuRow sub" Content="Title bar" Command="{Binding Tabs.SetPlacementCommand}" CommandParameter="TitleBar" Click="OnActionClick"
+                                IsVisible="{Binding $parent[views:AppMenu].HasTitleBarTabs}"
+                                Classes.checked="{Binding Tabs.IsTitleBar}" ToolTip.Tip="Tabs in the window's title bar, as in Windows 11"/>
+                        <Button Classes="menuRow sub" Content="Top" Command="{Binding Tabs.SetPlacementCommand}" CommandParameter="Top" Click="OnActionClick"
+                                Classes.checked="{Binding Tabs.IsTop}" ToolTip.Tip="Tabs in a row above the files"/>
+                        <Button Classes="menuRow sub" Content="Left" Command="{Binding Tabs.SetPlacementCommand}" CommandParameter="Left" Click="OnActionClick"
+                                Classes.checked="{Binding Tabs.IsLeft}" ToolTip.Tip="Vertical tabs at the left of the files"/>
+                        <Button Classes="menuRow sub" Content="Right" Command="{Binding Tabs.SetPlacementCommand}" CommandParameter="Right" Click="OnActionClick"
+                                Classes.checked="{Binding Tabs.IsRight}" ToolTip.Tip="Vertical tabs at the right of the files"/>
+                        <Border Classes="menuDivider sub"/>
+                        <TextBlock Classes="menuHeader sub" Text="Layout"/>
+                        <Button Classes="menuRow sub" Content="Details" Tag="Details" Click="OnViewOptionClick"
+                                Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Details}"/>
+                        <Button Classes="menuRow sub" Content="List" Tag="List" Click="OnViewOptionClick"
+                                Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=List}"/>
+                        <Button Classes="menuRow sub" Content="Tiles" Tag="Tiles" Click="OnViewOptionClick"
+                                Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Tiles}"/>
+                        <Border Classes="menuDivider sub"/>
+                        <Button Classes="menuRow sub" Content="Small icons" Tag="SmallIcons" Click="OnViewOptionClick"
+                                Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=SmallIcons}"/>
+                        <Button Classes="menuRow sub" Content="Medium icons" Tag="MediumIcons" Click="OnViewOptionClick"
+                                Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=MediumIcons}"/>
+                        <Button Classes="menuRow sub" Content="Large icons" Tag="LargeIcons" Click="OnViewOptionClick"
+                                Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=LargeIcons}"/>
+                        <Button Classes="menuRow sub" Content="Extra large icons" Tag="ExtraLargeIcons" Click="OnViewOptionClick"
+                                Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=ExtraLargeIcons}"/>
+                        <Border Classes="menuDivider sub"/>
+                        <Button Classes="menuRow sub" Content="Timeline" Tag="Timeline" Click="OnViewOptionClick"
+                                Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Timeline}"/>
+                        <Button Classes="menuRow sub" Content="Columns" Tag="Columns" Click="OnViewOptionClick"
+                                Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Columns}"/>
+                        <Button Classes="menuRow sub" Content="Nexus" Tag="Nexus" Click="OnViewOptionClick"
+                                Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Nexus}"/>
+                    </StackPanel>
+
+                    <!-- ===== Sort by: an explicit column and direction (SetSort), never the header click's toggle ===== -->
+                    <Button x:Name="SortHeader" Classes="menuRow" Click="OnSectionClick">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <ic:SymbolIcon Symbol="ArrowSort" FontSize="14" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Column="1" Text="Sort by" VerticalAlignment="Center"/>
+                            <ic:SymbolIcon Grid.Column="2" x:Name="SortChevron" Symbol="ChevronDown" FontSize="12" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+                    <StackPanel x:Name="SortPanel" IsVisible="False">
+                        <Button Classes="menuRow sub" Content="Name" Tag="Name" Click="OnSortColumnClick"
+                                Classes.checked="{Binding FileListViewModel.SortColumn, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Name}"/>
+                        <Button Classes="menuRow sub" Content="Date modified" Tag="DateModified" Click="OnSortColumnClick"
+                                Classes.checked="{Binding FileListViewModel.SortColumn, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=DateModified}"/>
+                        <Button Classes="menuRow sub" Content="Type" Tag="Type" Click="OnSortColumnClick"
+                                Classes.checked="{Binding FileListViewModel.SortColumn, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Type}"/>
+                        <Button Classes="menuRow sub" Content="Size" Tag="Size" Click="OnSortColumnClick"
+                                Classes.checked="{Binding FileListViewModel.SortColumn, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Size}"/>
+                        <Button Classes="menuRow sub" Content="Tags" Tag="Tags" Click="OnSortColumnClick"
+                                Classes.checked="{Binding FileListViewModel.SortColumn, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Tags}"/>
+                        <Button Classes="menuRow sub" Content="Date created" Tag="DateCreated" Click="OnSortColumnClick"
+                                Classes.checked="{Binding FileListViewModel.SortColumn, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=DateCreated}"/>
+                        <Button Classes="menuRow sub" Content="Date accessed" Tag="DateAccessed" Click="OnSortColumnClick"
+                                Classes.checked="{Binding FileListViewModel.SortColumn, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=DateAccessed}"/>
+                        <Border Classes="menuDivider sub"/>
+                        <Button Classes="menuRow sub" Content="Ascending" Tag="Ascending" Click="OnSortDirectionClick"
+                                Classes.checked="{Binding FileListViewModel.SortAscending}"/>
+                        <Button Classes="menuRow sub" Content="Descending" Tag="Descending" Click="OnSortDirectionClick"
+                                Classes.checked="{Binding !FileListViewModel.SortAscending}"/>
+                    </StackPanel>
+
+                    <!-- ===== Navigation tree: how the left panel's tree reacts to navigation in the file list ===== -->
+                    <Button x:Name="TreeHeader" Classes="menuRow" Click="OnSectionClick">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <ic:SymbolIcon Symbol="PanelLeft" FontSize="14" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Column="1" Text="Navigation tree" VerticalAlignment="Center"/>
+                            <ic:SymbolIcon Grid.Column="2" x:Name="TreeChevron" Symbol="ChevronDown" FontSize="12" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+                    <StackPanel x:Name="TreePanel" IsVisible="False">
+                        <Grid Classes="switchRow sub" ColumnDefinitions="*,Auto">
+                            <TextBlock Text="Follow the current folder" TextWrapping="Wrap"/>
+                            <ToggleSwitch x:Name="TreeFollowsSwitch" Grid.Column="1" Classes="compact" OnContent="{x:Null}" OffContent="{x:Null}"
+                                          IsChecked="{Binding TreeFollowsCurrentFolder}"
+                                          ToolTip.Tip="Select the folder shown in the file list in the tree when you navigate there from the main view"/>
+                        </Grid>
+                        <Grid Classes="switchRow sub" ColumnDefinitions="*,Auto" IsEnabled="{Binding TreeFollowsCurrentFolder}">
+                            <TextBlock Text="Expand to the current folder" TextWrapping="Wrap"/>
+                            <ToggleSwitch Grid.Column="1" Classes="compact" OnContent="{x:Null}" OffContent="{x:Null}"
+                                          IsChecked="{Binding ExpandTreeToCurrentFolder}"
+                                          ToolTip.Tip="Open the tree's branches down to a followed folder that is not visible yet"/>
+                        </Grid>
+                    </StackPanel>
+                    <Border Classes="menuDivider"/>
+
+                    <!-- Show in view: independent settings, each off by default. OneWay + command: the properties are read-only. -->
+                    <TextBlock Classes="menuHeader" Text="Show in view"/>
+                    <Grid Classes="switchRow" ColumnDefinitions="*,Auto">
+                        <TextBlock Text="Hidden items"/>
+                        <ToggleSwitch Grid.Column="1" Classes="compact" OnContent="{x:Null}" OffContent="{x:Null}"
+                                      IsChecked="{Binding FileListViewModel.ShowHiddenItems, Mode=OneWay}"
+                                      Command="{Binding FileListViewModel.ToggleShowHiddenItemsCommand}"
+                                      ToolTip.Tip="Show or hide hidden files and folders (Ctrl+H)"/>
+                    </Grid>
+                    <Grid Classes="switchRow" ColumnDefinitions="*,Auto" Margin="12,0,6,4">
+                        <TextBlock Text="System items"/>
+                        <ToggleSwitch Grid.Column="1" Classes="compact" OnContent="{x:Null}" OffContent="{x:Null}"
+                                      IsChecked="{Binding FileListViewModel.ShowSystemItems, Mode=OneWay}"
+                                      Command="{Binding FileListViewModel.ToggleShowSystemItemsCommand}"
+                                      ToolTip.Tip="Show or hide system files and folders"/>
+                    </Grid>
+                    <Border Classes="menuDivider"/>
+
+                    <!-- ===== Search index ===== -->
+                    <Button x:Name="IndexHeader" Classes="menuRow" Click="OnSectionClick">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <ic:SymbolIcon Symbol="Search" FontSize="14" Foreground="{Binding IndexIconBrush}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Column="1" Text="Search index" VerticalAlignment="Center"/>
+                            <ic:SymbolIcon Grid.Column="2" x:Name="IndexChevron" Symbol="ChevronDown" FontSize="12" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                        </Grid>
+                    </Button>
+                    <StackPanel x:Name="IndexPanel" IsVisible="False">
+                        <TextBlock Classes="indexStatus" Text="{Binding IndexDetailStatus}" TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondary}" Margin="28,2,12,4"/>
+                        <Button Classes="menuRow sub" Content="Refresh index" Command="{Binding RefreshIndexCommand}" Click="OnActionClick"/>
+                        <Button Classes="menuRow sub" Content="Stop indexing" Command="{Binding StopIndexingCommand}" Click="OnActionClick"/>
+                    </StackPanel>
+                    <Border Classes="menuDivider"/>
+
+                    <!-- Theme: the same setting as the Modern layout's "..." menu. -->
+                    <TextBlock Classes="menuHeader" Text="Theme" Margin="12,4,12,6"/>
+                    <Grid ColumnDefinitions="*,*,*" Margin="0,0,0,4">
+                        <Button Grid.Column="0" Classes="menuIcon first" Content="System" FontSize="12.5"
+                                Classes.checked="{Binding Theme, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=System}"
+                                Command="{Binding SetThemeCommand}" CommandParameter="System"/>
+                        <Button Grid.Column="1" Classes="menuIcon middle" Content="Light" FontSize="12.5"
+                                Classes.checked="{Binding Theme, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Light}"
+                                Command="{Binding SetThemeCommand}" CommandParameter="Light"/>
+                        <Button Grid.Column="2" Classes="menuIcon last" Content="Dark" FontSize="12.5"
+                                Classes.checked="{Binding Theme, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Dark}"
+                                Command="{Binding SetThemeCommand}" CommandParameter="Dark"/>
+                    </Grid>
+                    <Border Classes="menuDivider"/>
+
+                    <Button x:Name="SettingsRow" Classes="menuRow" Click="OnSettingsClick">
+                        <Grid ColumnDefinitions="Auto,*,Auto">
+                            <ic:SymbolIcon Symbol="Settings" FontSize="14" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBlock Grid.Column="1" Text="Settings" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Classes="gesture" Text="Ctrl+,"/>
+                        </Grid>
+                    </Button>
+                    <Button Classes="menuRow" Command="{Binding FileListViewModel.RefreshCommand}" Click="OnActionClick">
+                        <Grid ColumnDefinitions="*,Auto"><TextBlock Text="Refresh"/><TextBlock Grid.Column="1" Classes="gesture" Text="F5"/></Grid>
+                    </Button>
+                </StackPanel>
+                </ScrollViewer>
+
+                <!--
+                    The horizontal (classic) style: a category's items open in this submenu beside the menu. The same
+                    item panels serve both styles; the code moves the open category's panel in here and back, so each
+                    row exists once. A popup inside the flyout's own content, so it is a child of the flyout's popup
+                    and clicking in it does not count as clicking outside the menu.
+                -->
+                <Popup x:Name="SubmenuPopup" Placement="RightEdgeAlignedTop" HorizontalOffset="8" VerticalOffset="-11"
+                       IsLightDismissEnabled="False" PlacementConstraintAdjustment="FlipX,SlideY,ResizeY">
+                    <Border Margin="0,0,14,14" Background="{DynamicResource MenuBrush}" BorderBrush="{DynamicResource MenuBorderBrush}"
+                            BorderThickness="1" CornerRadius="10" Padding="10" BoxShadow="0 8 24 0 #50000000"
+                            PointerEntered="OnSubmenuPointerEntered">
+                        <ScrollViewer MaxHeight="640" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                            <Border x:Name="SubmenuHost" Width="248"/>
+                        </ScrollViewer>
+                    </Border>
+                </Popup>
+                </Panel>
+            </Flyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>

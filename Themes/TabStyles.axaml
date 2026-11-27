@@ -1,0 +1,270 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The tab bar (Views/Tabs/TabStripView): both directions, both themes; colors come from Palette.axaml.
+    Classes set from code on each tab (Border.tab): horizontal / vertical, selected, pinned, collapsed (vertical tabs shrunk to
+    icons), narrow (a horizontal tab too narrow for its close button unless selected), drop (files dragged over it), dragging.
+-->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ic="using:ByteExplorer.Icons">
+
+    <!-- ===== the bars ===== -->
+    <Style Selector="Border.tabBar">
+        <Setter Property="Background" Value="{DynamicResource TabStripBrush}"/>
+    </Style>
+    <Style Selector="Border.tabBar.horizontal">
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="Padding" Value="6,6,6,0"/>
+    </Style>
+    <!-- In the title bar (Modern layout): no color of its own (the title bar's shows, and the empty parts let presses
+         through to the title bar, which moves the window); the tabs reach its bottom edge, the selected one in the address
+         bar's color, so it reads as the front of the address bar below, as in Windows 11. -->
+    <Style Selector="Border.tabBar.horizontal.titleBar">
+        <Setter Property="Background" Value="{x:Null}"/>
+        <Setter Property="Height" Value="40"/>
+        <Setter Property="Padding" Value="0,6,0,0"/>
+    </Style>
+    <Style Selector="Border.tabBar.titleBar Border.tab.horizontal.selected">
+        <Setter Property="Background" Value="{DynamicResource TabTitleBarSelectedBg}"/>
+    </Style>
+    <Style Selector="Border.tabBar.left">
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+        <Setter Property="BorderThickness" Value="0,0,1,0"/>
+    </Style>
+    <Style Selector="Border.tabBar.right">
+        <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+        <Setter Property="BorderThickness" Value="1,0,0,0"/>
+    </Style>
+
+    <!-- ===== a tab ===== -->
+    <Style Selector="Border.tab">
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Cursor" Value="Arrow"/>
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.12"/>
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Border.tab.horizontal">
+        <Setter Property="CornerRadius" Value="8,8,0,0"/>
+    </Style>
+    <Style Selector="Border.tab.vertical">
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Margin" Value="6,2"/>
+    </Style>
+    <Style Selector="Border.tab.vertical.collapsed">
+        <Setter Property="Margin" Value="6,2"/>
+    </Style>
+
+    <Style Selector="Border.tab:pointerover">
+        <Setter Property="Background" Value="{DynamicResource TabHoverBg}"/>
+    </Style>
+    <Style Selector="Border.tab.horizontal.selected">
+        <Setter Property="Background" Value="{DynamicResource TabSelectedBg}"/>
+    </Style>
+    <Style Selector="Border.tab.vertical.selected">
+        <Setter Property="Background" Value="{DynamicResource TabCardBg}"/>
+        <Setter Property="BoxShadow" Value="{DynamicResource TabCardShadow}"/>
+    </Style>
+    <Style Selector="Border.tab.drop">
+        <Setter Property="Background" Value="{DynamicResource TabDropBg}"/>
+    </Style>
+    <Style Selector="Border.tab.dragging">
+        <Setter Property="Opacity" Value="0.92"/>
+        <Setter Property="BoxShadow" Value="0 4 12 0 #50000000"/>
+    </Style>
+
+    <!-- The selected tab's accent: a short line on top (horizontal), a pill on the left (vertical, as Windows 11 lists). -->
+    <Style Selector="Border.tabAccent">
+        <Setter Property="Background" Value="{DynamicResource SelectedAccent}"/>
+        <Setter Property="IsVisible" Value="False"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+    </Style>
+    <Style Selector="Border.tab.horizontal Border.tabAccent">
+        <Setter Property="Height" Value="2"/>
+        <Setter Property="CornerRadius" Value="1"/>
+        <Setter Property="VerticalAlignment" Value="Top"/>
+        <Setter Property="Margin" Value="10,0"/>
+    </Style>
+    <Style Selector="Border.tab.vertical Border.tabAccent">
+        <Setter Property="Width" Value="3"/>
+        <Setter Property="Height" Value="16"/>
+        <Setter Property="CornerRadius" Value="1.5"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.tab.selected Border.tabAccent">
+        <Setter Property="IsVisible" Value="True"/>
+    </Style>
+
+    <!-- The line between two horizontal tabs, hidden next to the selected or pointed-at tab (as Chrome does). -->
+    <Style Selector="Border.tabSeparator">
+        <Setter Property="Width" Value="1"/>
+        <Setter Property="Margin" Value="0,9,-1,9"/>
+        <Setter Property="HorizontalAlignment" Value="Right"/>
+        <Setter Property="Background" Value="{DynamicResource TabSeparatorBrush}"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+    </Style>
+    <Style Selector="Border.tab.vertical Border.tabSeparator">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+    <Style Selector="Border.tab.selected Border.tabSeparator, Border.tab:pointerover Border.tabSeparator, Border.tab.beforeSelected Border.tabSeparator, Border.tab.beforeHover Border.tabSeparator">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+
+    <Style Selector="TextBlock.tabTitle">
+        <Setter Property="FontSize" Value="12.5"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="Margin" Value="8,0,4,0"/>
+    </Style>
+    <Style Selector="Border.tab:pointerover TextBlock.tabTitle, Border.tab.selected TextBlock.tabTitle">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    </Style>
+    <Style Selector="Border.tab.pinned.horizontal TextBlock.tabTitle, Border.tab.collapsed TextBlock.tabTitle">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+
+    <Style Selector="ic|SymbolIcon.tabIcon">
+        <Setter Property="FontSize" Value="16"/>
+        <Setter Property="Foreground" Value="{DynamicResource IconGray}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+    </Style>
+    <Style Selector="Border.tab.selected ic|SymbolIcon.tabIcon">
+        <Setter Property="Foreground" Value="{DynamicResource SelectedAccent}"/>
+    </Style>
+
+    <!-- The close button: on the selected tab and the pointed-at one; never on pinned or collapsed tabs, nor on a narrow
+         tab unless it is selected (there's no room for both the title and the button). -->
+    <Style Selector="Button.tabClose">
+        <Setter Property="Width" Value="22"/>
+        <Setter Property="Height" Value="22"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="0,0,6,0"/>
+        <Setter Property="CornerRadius" Value="4"/>
+        <Setter Property="Opacity" Value="0"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+    </Style>
+    <Style Selector="Border.tab:pointerover Button.tabClose, Border.tab.selected Button.tabClose">
+        <Setter Property="Opacity" Value="1"/>
+        <Setter Property="IsHitTestVisible" Value="True"/>
+    </Style>
+    <Style Selector="Border.tab.narrow:pointerover Button.tabClose">
+        <Setter Property="Opacity" Value="0"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+    </Style>
+    <Style Selector="Border.tab.narrow.selected Button.tabClose">
+        <Setter Property="Opacity" Value="1"/>
+        <Setter Property="IsHitTestVisible" Value="True"/>
+    </Style>
+    <Style Selector="Border.tab.pinned Button.tabClose, Border.tab.collapsed Button.tabClose">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+    <Style Selector="Button.tabClose:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    </Style>
+
+    <!-- A pinned vertical tab shows a small pin where others have their close button. -->
+    <Style Selector="ic|SymbolIcon.tabPin">
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="Margin" Value="0,0,10,0"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+    <Style Selector="Border.tab.pinned.vertical ic|SymbolIcon.tabPin">
+        <Setter Property="IsVisible" Value="True"/>
+    </Style>
+    <Style Selector="Border.tab.pinned.vertical.collapsed ic|SymbolIcon.tabPin">
+        <Setter Property="IsVisible" Value="False"/>
+    </Style>
+
+    <!-- Reading the folder: a turning arc in place of the icon (shown only when it takes a moment). -->
+    <Style Selector="Path.tabSpinner">
+        <Setter Property="Stroke" Value="{DynamicResource SelectedAccent}"/>
+        <Setter Property="StrokeThickness" Value="2"/>
+        <Setter Property="StrokeLineCap" Value="Round"/>
+        <Setter Property="Width" Value="14"/>
+        <Setter Property="Height" Value="14"/>
+        <Setter Property="Stretch" Value="None"/>
+        <Setter Property="HorizontalAlignment" Value="Center"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+        <Setter Property="RenderTransformOrigin" Value="50%,50%"/>
+        <Style.Animations>
+            <Animation Duration="0:0:0.9" IterationCount="INFINITE">
+                <KeyFrame Cue="0%">
+                    <Setter Property="RotateTransform.Angle" Value="0"/>
+                </KeyFrame>
+                <KeyFrame Cue="100%">
+                    <Setter Property="RotateTransform.Angle" Value="360"/>
+                </KeyFrame>
+            </Animation>
+        </Style.Animations>
+    </Style>
+
+    <!-- ===== the bar's buttons (new tab, all tabs, collapse) and the vertical "New tab" row ===== -->
+    <Style Selector="Button.tabBarButton">
+        <Setter Property="Width" Value="30"/>
+        <Setter Property="Height" Value="30"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+    </Style>
+    <Style Selector="Button.tabBarButton:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    </Style>
+    <Style Selector="Button.tabBarButton.drop /template/ Border#bd">
+        <Setter Property="Background" Value="{DynamicResource TabDropBg}"/>
+    </Style>
+    <Style Selector="Button.newTabRow">
+        <Setter Property="Height" Value="34"/>
+        <Setter Property="Margin" Value="6,2"/>
+        <Setter Property="Padding" Value="10,0"/>
+        <Setter Property="CornerRadius" Value="6"/>
+        <Setter Property="HorizontalAlignment" Value="Stretch"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+    </Style>
+    <Style Selector="Button.newTabRow:pointerover">
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+    </Style>
+    <Style Selector="Button.newTabRow.collapsed">
+        <Setter Property="HorizontalContentAlignment" Value="Center"/>
+        <Setter Property="Padding" Value="0"/>
+    </Style>
+    <Style Selector="Button.newTabRow.drop /template/ Border#bd">
+        <Setter Property="Background" Value="{DynamicResource TabDropBg}"/>
+    </Style>
+    <Style Selector="TextBlock.tabBarHeader">
+        <Setter Property="FontSize" Value="11.5"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+        <Setter Property="VerticalAlignment" Value="Center"/>
+    </Style>
+
+    <!-- The vertical bar's edge, dragged to resize it. -->
+    <Style Selector="Border.tabResizer">
+        <Setter Property="Width" Value="6"/>
+        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Cursor" Value="SizeWestEast"/>
+    </Style>
+    <Style Selector="Border.tabResizer:pointerover">
+        <Setter Property="Background" Value="{DynamicResource SelectedAccent}"/>
+        <Setter Property="Opacity" Value="0.5"/>
+    </Style>
+
+    <!-- The line between pinned and other vertical tabs. -->
+    <Style Selector="Border.tabGroupLine">
+        <Setter Property="Height" Value="1"/>
+        <Setter Property="Margin" Value="12,4"/>
+        <Setter Property="Background" Value="{DynamicResource BorderLight}"/>
+    </Style>
+</Styles>

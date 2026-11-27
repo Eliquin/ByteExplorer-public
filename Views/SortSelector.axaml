@@ -1,0 +1,49 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The toolbar's Sort menu. DataContext: the window's MainViewModel, acting on the active pane's FileListViewModel. A
+    column option keeps the current direction and a direction option keeps the current column, both through
+    FileListViewModel.SetSort: SetSortColumn (the column-header behaviour) would flip the direction when the current column
+    is picked again, which is wrong for a menu. Port of the WPF Popup-based selector as a MenuFlyout.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:vm="using:ByteExplorer.ViewModels"
+             xmlns:conv="using:ByteExplorer.Infrastructure.Converters"
+             x:Class="ByteExplorer.Views.SortSelector"
+             x:DataType="vm:MainViewModel">
+    <Button Classes="cmd" Padding="10,6" ToolTip.Tip="Sort">
+        <StackPanel Orientation="Horizontal">
+            <ic:SymbolIcon Symbol="ArrowSort" FontSize="16" VerticalAlignment="Center"/>
+            <TextBlock Text="Sort" Margin="6,0,2,0" VerticalAlignment="Center"/>
+            <ic:SymbolIcon Symbol="ChevronDown" FontSize="10" Margin="4,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+        <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                <MenuItem Header="Name" Tag="Name" ToggleType="Radio" GroupName="SortColumn" Click="OnSortColumnClick"
+                          IsChecked="{Binding FileListViewModel.SortColumn, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Name}"/>
+                <MenuItem Header="Date modified" Tag="DateModified" ToggleType="Radio" GroupName="SortColumn" Click="OnSortColumnClick"
+                          IsChecked="{Binding FileListViewModel.SortColumn, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=DateModified}"/>
+                <MenuItem Header="Type" Tag="Type" ToggleType="Radio" GroupName="SortColumn" Click="OnSortColumnClick"
+                          IsChecked="{Binding FileListViewModel.SortColumn, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Type}"/>
+                <MenuItem Header="Size" Tag="Size" ToggleType="Radio" GroupName="SortColumn" Click="OnSortColumnClick"
+                          IsChecked="{Binding FileListViewModel.SortColumn, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Size}"/>
+                <MenuItem Header="Tags" Tag="Tags" ToggleType="Radio" GroupName="SortColumn" Click="OnSortColumnClick"
+                          IsChecked="{Binding FileListViewModel.SortColumn, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Tags}"/>
+                <MenuItem Header="Date created" Tag="DateCreated" ToggleType="Radio" GroupName="SortColumn" Click="OnSortColumnClick"
+                          IsChecked="{Binding FileListViewModel.SortColumn, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=DateCreated}"/>
+                <MenuItem Header="Date accessed" Tag="DateAccessed" ToggleType="Radio" GroupName="SortColumn" Click="OnSortColumnClick"
+                          IsChecked="{Binding FileListViewModel.SortColumn, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=DateAccessed}"/>
+                <Separator/>
+                <MenuItem Header="Ascending" Tag="True" ToggleType="Radio" GroupName="SortDirection" Click="OnSortDirectionClick"
+                          IsChecked="{Binding FileListViewModel.SortAscending, Mode=OneWay}"/>
+                <MenuItem Header="Descending" Tag="False" ToggleType="Radio" GroupName="SortDirection" Click="OnSortDirectionClick"
+                          IsChecked="{Binding !FileListViewModel.SortAscending, Mode=OneWay}"/>
+            </MenuFlyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>

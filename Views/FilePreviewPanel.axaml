@@ -1,0 +1,184 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The details panel's preview of the selected item: folder listing, image, audio/video player, text, a document (Windows
+    preview handler), or "no preview".
+    DataContext is inherited from the window (MainViewModel), so every binding goes through FileListViewModel.Preview;
+    FileListViewModel is the active pane's list and changes with focus in split view, which the bindings follow.
+
+    No fixed widths anywhere: the preview grows and shrinks with the details panel.
+
+    Media: the VideoView (Views/VideoView.cs) is created in code the first time a video needs it and lives in
+    VideoHost. It is a native child window, so nothing can be drawn over it; the transport controls sit below it. All
+    LibVLC objects belong to the code-behind's MediaPlaybackEngine, never to the view model. When libvlc is not available
+    (MediaEngine.IsAvailable) the media state shows a notice instead of a player.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:vm="using:ByteExplorer.ViewModels"
+             xmlns:views="using:ByteExplorer.Views"
+             xmlns:conv="using:ByteExplorer.Infrastructure.Converters"
+             x:Class="ByteExplorer.Views.FilePreviewPanel"
+             x:DataType="vm:MainViewModel">
+
+    <UserControl.Styles>
+        <Style Selector="TextBlock.note">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+        <!-- Text files in a monospace font; a document's text (.prose) keeps the inherited UI font. -->
+        <Style Selector="SelectableTextBlock.previewText:not(.prose)">
+            <Setter Property="FontSize" Value="11.5"/>
+            <Setter Property="FontFamily" Value="Cascadia Mono, Consolas, Menlo, SF Mono, DejaVu Sans Mono, Liberation Mono, monospace"/>
+        </Style>
+        <Style Selector="SelectableTextBlock.previewText.prose">
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+        <Style Selector="Button.soft">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="12,5"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+        <Style Selector="Button.soft:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PressedBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="Button.soft:disabled /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+            <Setter Property="Opacity" Value="0.4"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Grid>
+        <!-- ===== Loading ===== -->
+        <TextBlock Text="Loading preview…" FontSize="11.5" Foreground="{DynamicResource TextSecondary}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center">
+            <TextBlock.IsVisible>
+                <MultiBinding Converter="{x:Static BoolConverters.And}">
+                    <Binding Path="FileListViewModel.Preview.IsLoading"/>
+                    <Binding Path="FileListViewModel.Preview.Kind" Converter="{x:Static conv:Conv.EnumEquals}" ConverterParameter="None"/>
+                </MultiBinding>
+            </TextBlock.IsVisible>
+        </TextBlock>
+
+        <!-- ===== Folder ===== -->
+        <Grid RowDefinitions="*,Auto"
+              IsVisible="{Binding FileListViewModel.Preview.Kind, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Folder}">
+            <TextBlock Grid.Row="0" Text="This folder is empty" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                       IsVisible="{Binding FileListViewModel.Preview.FolderIsEmpty}"/>
+            <ScrollViewer Grid.Row="0" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <ItemsControl ItemsSource="{Binding FileListViewModel.Preview.FolderEntries}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:FilePreviewFolderEntryViewModel">
+                            <Grid ColumnDefinitions="Auto,*" Margin="0,2">
+                                <Viewbox Width="14" Height="14" Margin="0,0,6,0" VerticalAlignment="Center">
+                                    <Panel>
+                                        <ContentControl Template="{StaticResource FolderIcon}" Tag="{DynamicResource FolderYellow}"
+                                                        IsVisible="{Binding IsDirectory}"/>
+                                        <ContentControl Template="{StaticResource FileIcon}" Tag="{DynamicResource TextSecondary}"
+                                                        IsVisible="{Binding !IsDirectory}"/>
+                                    </Panel>
+                                </Viewbox>
+                                <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12" Foreground="{DynamicResource TextPrimary}"
+                                           TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </ScrollViewer>
+            <TextBlock Grid.Row="1" Classes="note" Text="Showing the first 50 items" Margin="0,6,0,0"
+                       IsVisible="{Binding FileListViewModel.Preview.FolderHasMore}"/>
+        </Grid>
+
+        <!-- ===== Image (decoded off the UI thread by the view model) ===== -->
+        <Image Source="{Binding FileListViewModel.Preview.ImageSource}" Stretch="Uniform" StretchDirection="DownOnly"
+               RenderOptions.BitmapInterpolationMode="HighQuality"
+               HorizontalAlignment="Center" VerticalAlignment="Center"
+               IsVisible="{Binding FileListViewModel.Preview.Kind, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Image}"/>
+
+        <!-- ===== Media (video/audio) ===== -->
+        <Panel IsVisible="{Binding FileListViewModel.Preview.Kind, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Media}">
+            <Grid x:Name="MediaPlayerArea" RowDefinitions="*,Auto,Auto">
+                <Border x:Name="VideoHost" Grid.Row="0" Background="Black" CornerRadius="4" ClipToBounds="True"
+                        IsVisible="{Binding !FileListViewModel.Preview.IsMediaAudio}"/>
+                <!-- Audio has no picture: a symbol instead of an empty black surface. -->
+                <ic:SymbolIcon Grid.Row="0" Symbol="MusicNote2" FontSize="44" Foreground="{DynamicResource TextSecondary}"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               IsVisible="{Binding FileListViewModel.Preview.IsMediaAudio}"/>
+
+                <views:MediaTransportBar x:Name="TransportBar" Grid.Row="1" Margin="0,8,0,0"/>
+
+                <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,8,0,0">
+                    <CheckBox x:Name="AutoplayCheckBox" Content="Autoplay" FontSize="11.5" VerticalAlignment="Center"
+                              Foreground="{DynamicResource TextSecondary}"
+                              ToolTip.Tip="Start playing a video or audio file as soon as it is selected"/>
+                    <Button x:Name="FullScreenButton" Classes="soft" Margin="16,0,0,0" IsEnabled="False"
+                            VerticalAlignment="Center" Click="OnFullScreenClick"
+                            ToolTip.Tip="Show the video full screen (Esc to return)"
+                            IsVisible="{Binding !FileListViewModel.Preview.IsMediaAudio}">
+                        <StackPanel Orientation="Horizontal">
+                            <ic:SymbolIcon Symbol="FullScreenMaximize" FontSize="14" VerticalAlignment="Center"/>
+                            <TextBlock Text="Full screen" Margin="6,0,0,0" FontSize="11.5" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
+            </Grid>
+
+            <StackPanel x:Name="MediaUnavailablePanel" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="8">
+                <ic:SymbolIcon Symbol="VideoClip" FontSize="36" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center"/>
+                <TextBlock Text="Media preview unavailable" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                           HorizontalAlignment="Center" Margin="0,8,0,4"/>
+                <TextBlock x:Name="MediaUnavailableHint" Classes="note" TextWrapping="Wrap" TextAlignment="Center"/>
+            </StackPanel>
+        </Panel>
+
+        <!-- ===== Text ===== -->
+        <Grid RowDefinitions="*,Auto"
+              IsVisible="{Binding FileListViewModel.Preview.Kind, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Text}">
+            <Border Grid.Row="0" Background="{DynamicResource ContentBrush}" BorderBrush="{DynamicResource BorderLight}"
+                    BorderThickness="1" CornerRadius="4">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                    <!-- A text file in a monospace font; a document's text (.docx, .odt) in the UI font, as prose. -->
+                    <SelectableTextBlock Classes="previewText" Classes.prose="{Binding FileListViewModel.Preview.IsDocumentText}"
+                                         Text="{Binding FileListViewModel.Preview.TextContent}" TextWrapping="Wrap"
+                                         Foreground="{DynamicResource TextPrimary}" SelectionBrush="{DynamicResource SelectedAccent}"
+                                         Padding="6"/>
+                </ScrollViewer>
+            </Border>
+            <StackPanel Grid.Row="1" Orientation="Vertical">
+                <TextBlock Classes="note" Text="Text only: formatting, pictures and tables are not shown" Margin="0,6,0,0"
+                           TextWrapping="Wrap" IsVisible="{Binding FileListViewModel.Preview.IsDocumentText}"/>
+                <TextBlock Classes="note" Text="Preview truncated" Margin="0,6,0,0"
+                           IsVisible="{Binding FileListViewModel.Preview.IsTextTruncated}"/>
+            </StackPanel>
+        </Grid>
+
+        <!-- ===== Document (Windows preview handler) =====
+             The PreviewHandlerHost (Views/PreviewHandlerHost.cs, a native child window) is created in code on Windows the
+             first time a document needs it and lives in DocumentHost; see the code-behind. -->
+        <Border x:Name="DocumentHost" Background="{DynamicResource ContentBrush}" BorderBrush="{DynamicResource BorderLight}"
+                BorderThickness="1" CornerRadius="4" ClipToBounds="True"
+                IsVisible="{Binding FileListViewModel.Preview.Kind, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Document}"/>
+
+        <!-- ===== Unsupported / no preview ===== -->
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center"
+                    IsVisible="{Binding FileListViewModel.Preview.Kind, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Unsupported}">
+            <TextBlock Text="No preview available" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                       HorizontalAlignment="Center" Margin="0,0,0,10"/>
+            <Button Classes="soft" Content="Preview as text" HorizontalAlignment="Center"
+                    Command="{Binding FileListViewModel.Preview.PreviewAsTextCommand}"
+                    IsVisible="{Binding FileListViewModel.Preview.CanOfferTextPreview}"/>
+        </StackPanel>
+    </Grid>
+</UserControl>

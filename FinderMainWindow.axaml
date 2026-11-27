@@ -1,0 +1,458 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The Finder window layout, after macOS Finder: a sidebar the full height of the window with the window buttons at its
+    top (the native ones on macOS), and sections with small gray headers (Favorites, Locations, Tags with colored dots);
+    a unified toolbar over the content with back and forward, the folder's name as the title, a segmented view switcher,
+    the menu and a rounded search field; a path bar (the omnibar's breadcrumbs) and a status bar at the bottom; striped
+    list rows. Same behaviour as the other layouts (MainWindowBase); its colors are Finder-like overrides of the shared
+    palette for this window only, in both themes.
+-->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ic="using:ByteExplorer.Icons"
+        xmlns:views="using:ByteExplorer.Views"
+        xmlns:searchv="using:ByteExplorer.Views.Search"
+        xmlns:omni="using:ByteExplorer.Views.Omnibar"
+        xmlns:side="using:ByteExplorer.Views.Sidebar"
+        xmlns:tabs="using:ByteExplorer.Views.Tabs"
+        xmlns:ctl="using:ByteExplorer.Controls"
+        xmlns:vm="using:ByteExplorer.ViewModels"
+        xmlns:conv="using:ByteExplorer.Infrastructure.Converters"
+        x:Class="ByteExplorer.FinderMainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="{Binding WindowTitle}"
+        Icon="avares://ByteExplorer/Assets/Icon/ByteExplorer.ico"
+        Width="1300" Height="800" MinWidth="680" MinHeight="380"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource ContentBrush}"
+        FontFamily="{DynamicResource UiFont}"
+        FontSize="13">
+
+    <Window.Resources>
+        <!-- Finder's colors, for this window only: they override the shared palette keys the views use. -->
+        <ResourceDictionary>
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Dark">
+                    <SolidColorBrush x:Key="ContentBrush"       Color="#FF1E1E1E"/>
+                    <SolidColorBrush x:Key="BorderLight"        Color="#FF3A3A3C"/>
+                    <SolidColorBrush x:Key="HoverBg"            Color="#FF2C2C2E"/>
+                    <SolidColorBrush x:Key="SelectedBg"         Color="#FF0B57C4"/>
+                    <SolidColorBrush x:Key="NavSelectedBg"      Color="#FF3A3A3D"/>
+                    <SolidColorBrush x:Key="SelectedAccent"     Color="#FF0A84FF"/>
+                    <SolidColorBrush x:Key="FieldBrush"         Color="#FF2C2C2E"/>
+                    <SolidColorBrush x:Key="FinderSidebarBrush" Color="#FF29282B"/>
+                    <SolidColorBrush x:Key="FinderToolbarBrush" Color="#FF262628"/>
+                    <SolidColorBrush x:Key="FinderStripeBrush"  Color="#FF242426"/>
+                    <SolidColorBrush x:Key="FinderHeaderText"   Color="#FF8E8E93"/>
+                    <SolidColorBrush x:Key="FinderSidebarIcon"  Color="#FF0A84FF"/>
+                    <SolidColorBrush x:Key="FinderSegmentBg"    Color="#FF363638"/>
+                    <SolidColorBrush x:Key="FinderSegmentOn"    Color="#FF5A5A5E"/>
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Light">
+                    <SolidColorBrush x:Key="ContentBrush"       Color="#FFFFFFFF"/>
+                    <SolidColorBrush x:Key="BorderLight"        Color="#FFE1E1E3"/>
+                    <SolidColorBrush x:Key="HoverBg"            Color="#FFF2F2F4"/>
+                    <SolidColorBrush x:Key="SelectedBg"         Color="#FFCCE0FC"/>
+                    <SolidColorBrush x:Key="NavSelectedBg"      Color="#FFDCDCE0"/>
+                    <SolidColorBrush x:Key="SelectedAccent"     Color="#FF007AFF"/>
+                    <SolidColorBrush x:Key="FieldBrush"         Color="#FFFFFFFF"/>
+                    <SolidColorBrush x:Key="FinderSidebarBrush" Color="#FFEDECEF"/>
+                    <SolidColorBrush x:Key="FinderToolbarBrush" Color="#FFF6F6F7"/>
+                    <SolidColorBrush x:Key="FinderStripeBrush"  Color="#FFF4F5F5"/>
+                    <SolidColorBrush x:Key="FinderHeaderText"   Color="#FF8E8E93"/>
+                    <SolidColorBrush x:Key="FinderSidebarIcon"  Color="#FF007AFF"/>
+                    <SolidColorBrush x:Key="FinderSegmentBg"    Color="#FFE6E6E9"/>
+                    <SolidColorBrush x:Key="FinderSegmentOn"    Color="#FFFFFFFF"/>
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Window.Styles>
+        <!-- Sidebar rows: 28 px, rounded, the icon in the accent color, a quiet gray for the selected place. -->
+        <Style Selector="Border.navRow.finder, Border.navRow.nemo">
+            <Setter Property="Height" Value="NaN"/>
+            <Setter Property="MinHeight" Value="28"/>
+            <Setter Property="Margin" Value="0,0.5"/>
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        <Style Selector="Border.navRow.finder:pointerover, Border.navRow.nemo:pointerover">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="Border.navRow.finder.active, Border.navRow.nemo.active">
+            <Setter Property="Background" Value="{DynamicResource NavSelectedBg}"/>
+        </Style>
+        <Style Selector="Border.navRow.finder.dropTarget, Border.navRow.nemo.dropTarget">
+            <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+        </Style>
+        <Style Selector="Border.navRow.finder ic|SymbolIcon.glyph, Border.navRow.nemo ic|SymbolIcon.glyph">
+            <Setter Property="FontSize" Value="16"/>
+            <Setter Property="Foreground" Value="{DynamicResource FinderSidebarIcon}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Border.navRow.finder TextBlock.label, Border.navRow.nemo TextBlock.label">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="9,0,0,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+        <Style Selector="TextBlock.finderSection">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource FinderHeaderText}"/>
+            <Setter Property="Margin" Value="10,12,0,3"/>
+        </Style>
+
+        <!-- The window buttons ("traffic lights"): three 12 px circles; their symbols show while the pointer is over them. -->
+        <Style Selector="Button.traffic">
+            <Setter Property="Width" Value="12"/>
+            <Setter Property="Height" Value="12"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="BorderThickness" Value="0.5"/>
+            <Setter Property="BorderBrush" Value="#33000000"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="bd" Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}">
+                        <ContentPresenter Content="{TemplateBinding Content}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.traffic.close"><Setter Property="Background" Value="#FFFF5F57"/></Style>
+        <Style Selector="Button.traffic.minimize"><Setter Property="Background" Value="#FFFEBC2E"/></Style>
+        <Style Selector="Button.traffic.zoom"><Setter Property="Background" Value="#FF28C840"/></Style>
+        <Style Selector="Button.traffic ic|SymbolIcon">
+            <Setter Property="FontSize" Value="8"/>
+            <Setter Property="Foreground" Value="#B3000000"/>
+            <Setter Property="Opacity" Value="0"/>
+        </Style>
+        <Style Selector="StackPanel#CaptionButtons:pointerover Button.traffic ic|SymbolIcon">
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+
+        <!-- Toolbar buttons: borderless, rounded, gray glyphs. -->
+        <Style Selector="Button.cmd.finderTool">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        <Style Selector="Button.segment">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="Button.segment:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="Button.segment.checked /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource FinderSegmentOn}"/>
+            <Setter Property="BoxShadow" Value="0 1 2 0 #26000000"/>
+        </Style>
+
+        <!-- Striped list rows (Details view), as Finder's list view; a selected or hovered row keeps its own color. (FileListBox styles
+             as ListBox, so the selector names ListBox.) -->
+        <Style Selector="ListBox#DetailsList ListBoxItem.alternate:not(:selected):not(:pointerover)">
+            <Setter Property="Background" Value="{DynamicResource FinderStripeBrush}"/>
+        </Style>
+
+        <!-- Buttons on the gray bars hover a step darker. -->
+        <Style Selector="Border#StatusBar Button.cmd:pointerover /template/ Border#bd, Border#Toolbar Button.cmd:pointerover /template/ Border#bd">
+            <Setter Property="Background" Value="{DynamicResource NavSelectedBg}"/>
+        </Style>
+    </Window.Styles>
+
+    <Panel>
+        <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" x:Name="FrameBorder">
+            <Grid x:Name="RootGrid" ColumnDefinitions="210,*">
+
+                <!-- ============ SIDEBAR ============ -->
+                <Border Grid.Column="0" x:Name="Sidebar" Background="{DynamicResource FinderSidebarBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,1,0">
+                    <DockPanel>
+                        <!-- The window buttons; the strip is a drag region. On macOS the native buttons sit here instead. -->
+                        <Border DockPanel.Dock="Top" x:Name="SidebarTop" Height="52" Background="Transparent">
+                            <StackPanel x:Name="CaptionButtons" Orientation="Horizontal" Spacing="8" Margin="14,0,0,0" VerticalAlignment="Center" Background="Transparent">
+                                <Button Classes="traffic close" Click="OnCloseClick" ToolTip.Tip="Close">
+                                    <ic:SymbolIcon Symbol="Dismiss"/>
+                                </Button>
+                                <Button Classes="traffic minimize" Click="OnMinimizeClick" ToolTip.Tip="Minimize">
+                                    <ic:SymbolIcon Symbol="Subtract"/>
+                                </Button>
+                                <Button x:Name="MaximizeButton" Classes="traffic zoom" Click="OnMaximizeRestoreClick" ToolTip.Tip="Zoom">
+                                    <ic:SymbolIcon x:Name="MaximizeIcon" Symbol="Maximize"/>
+                                </Button>
+                            </StackPanel>
+                        </Border>
+
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="SidebarSections" Margin="10,0,10,14">
+                                <!-- Sections: their order is a setting (SidebarOrder). -->
+                                <!-- Favorites: Recents (the Home dashboard) and Home. -->
+                                <StackPanel side:SidebarOrder.Key="Places">
+                                <TextBlock Classes="finderSection" Text="Favorites" Margin="10,2,0,3"/>
+                                <Border Classes="navRow finder" Classes.active="{Binding FileListViewModel.IsHomeView}"
+                                        PointerReleased="OnHomeRowPointerReleased" ToolTip.Tip="Recent and frequent folders">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ic:SymbolIcon Classes="glyph" Symbol="History"/>
+                                        <TextBlock Classes="label" Text="Recents"/>
+                                    </StackPanel>
+                                </Border>
+                                <Border x:Name="HomeFolderRow" Classes="navRow finder" DragDrop.AllowDrop="True"
+                                        PointerReleased="OnFolderRowPointerReleased" ToolTip.Tip="{Binding $self.Tag}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ic:SymbolIcon Classes="glyph" Symbol="Home"/>
+                                        <TextBlock Classes="label" Text="Home"/>
+                                    </StackPanel>
+                                </Border>
+                                </StackPanel>
+                                <side:SidebarSection side:SidebarOrder.Key="QuickAccess" Header="Pinned" SectionKey="QuickAccess" HeaderMargin="10,6,0,2">
+                                    <side:SidebarSection.HeaderActions>
+                                        <Button Classes="cmd" Padding="4" Command="{Binding TogglePinCommand}" ToolTip.Tip="Pin the current folder (Ctrl+D)">
+                                            <ic:SymbolIcon Symbol="Add" FontSize="12" Foreground="{DynamicResource IconGray}"/>
+                                        </Button>
+                                    </side:SidebarSection.HeaderActions>
+                                    <side:PinnedAreaView DataContext="{Binding Pins}" Variant="Nemo"/>
+                                </side:SidebarSection>
+
+                                <!-- Locations: this computer and its drives. -->
+                                <StackPanel side:SidebarOrder.Key="Drives">
+                                <TextBlock Classes="finderSection" Text="Locations"/>
+                                <Border Classes="navRow finder" Classes.active="{Binding FileListViewModel.IsThisPcView}"
+                                        PointerReleased="OnThisPcRowPointerReleased" ToolTip.Tip="Devices and recent files">
+                                    <StackPanel Orientation="Horizontal">
+                                        <ic:SymbolIcon Classes="glyph" Symbol="Desktop"/>
+                                        <TextBlock Classes="label" Text="This PC"/>
+                                    </StackPanel>
+                                </Border>
+                                <ItemsControl ItemsSource="{Binding FileListViewModel.ThisPcDrives}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:ThisPcDriveItem">
+                                            <Border Classes="navRow finder" Tag="{Binding RootPath}" DragDrop.AllowDrop="{Binding IsReady}"
+                                                    ToolTip.Tip="{Binding StatusTooltip}" PointerReleased="OnFolderRowPointerReleased">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ic:SymbolIcon Classes="glyph" Symbol="{Binding Glyph}"/>
+                                                    <TextBlock Classes="label" Text="{Binding DisplayName}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                </StackPanel>
+                                <side:SidebarSection side:SidebarOrder.Key="Network" Header="Network" SectionKey="Network" HeaderMargin="10,6,0,2">
+                                    <side:SidebarSection.HeaderActions>
+                                        <Button Classes="cmd" Padding="4" Command="{Binding AddNetworkLocationCommand}" ToolTip.Tip="Add network location">
+                                            <ic:SymbolIcon Symbol="Add" FontSize="12" Foreground="{DynamicResource IconGray}"/>
+                                        </Button>
+                                    </side:SidebarSection.HeaderActions>
+                                    <ItemsControl ItemsSource="{Binding NetworkLocations.Items}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:SavedLocation">
+                                                <Border Classes="navRow finder" Tag="{Binding}" ToolTip.Tip="{Binding Path}" PointerReleased="OnNetworkRowPointerReleased">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <ic:SymbolIcon Classes="glyph" Symbol="GlobeDesktop"/>
+                                                        <TextBlock Classes="label" Text="{Binding Name}"/>
+                                                    </StackPanel>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </side:SidebarSection>
+
+                                <!-- Tags, with their colored dots: click to see a tag's items, drop files to tag them. -->
+                                <side:SidebarSection side:SidebarOrder.Key="Tags" Header="Tags" SectionKey="Tags" HeaderMargin="10,6,0,2">
+                                    <side:SidebarSection.HeaderActions>
+                                        <Button Classes="cmd" Padding="4" Click="OnNewTagClick" ToolTip.Tip="New tag">
+                                            <ic:SymbolIcon Symbol="Add" FontSize="12" Foreground="{DynamicResource IconGray}"/>
+                                        </Button>
+                                    </side:SidebarSection.HeaderActions>
+                                    <side:TagsSidebarView x:Name="TagsView" DataContext="{Binding TagSidebar}" Variant="Nemo"/>
+                                </side:SidebarSection>
+                            </StackPanel>
+                        </ScrollViewer>
+                    </DockPanel>
+                </Border>
+
+                <GridSplitter Grid.Column="0" x:Name="SidebarSplitter" Width="5" HorizontalAlignment="Right" Background="Transparent" ResizeDirection="Columns" ZIndex="1"/>
+
+                <!-- ============ MAIN ============ -->
+                <Grid Grid.Column="1" x:Name="MainGrid" RowDefinitions="52,*,Auto,Auto">
+
+                    <!-- ===== Unified toolbar: navigation, title, view switcher, menu, search ===== -->
+                    <Border Grid.Row="0" x:Name="Toolbar" Background="{DynamicResource FinderToolbarBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1">
+                        <Grid Margin="10,0,14,0" ColumnDefinitions="Auto,Auto,*,Auto,Auto,Auto">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="2">
+                                <Button Classes="cmd finderTool" Command="{Binding FileListViewModel.NavigateBackCommand}" views:NavigationHistoryMenu.Direction="Back"
+                                        ToolTip.Tip="Back (Alt+Left) — right-click for history">
+                                    <ic:SymbolIcon Symbol="ChevronLeft" FontSize="16"/>
+                                </Button>
+                                <Button Classes="cmd finderTool" Command="{Binding FileListViewModel.NavigateForwardCommand}" views:NavigationHistoryMenu.Direction="Forward"
+                                        ToolTip.Tip="Forward (Alt+Right) — right-click for history">
+                                    <ic:SymbolIcon Symbol="ChevronRight" FontSize="16"/>
+                                </Button>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" x:Name="LocationTitle" Text="{Binding FileListViewModel.LocationTitle}" FontSize="15" FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" Margin="10,0,12,0" MaxWidth="360"
+                                       TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding FileListViewModel.CurrentPath}"/>
+
+                            <!-- View: Icons, List, Columns, Gallery (Tiles), as Finder's segmented control. -->
+                            <Border Grid.Column="3" Background="{DynamicResource FinderSegmentBg}" CornerRadius="7" Padding="2" Margin="0,0,10,0" VerticalAlignment="Center">
+                                <StackPanel Orientation="Horizontal" Spacing="1">
+                                    <Button Classes="segment" Tag="LargeIcons" Click="OnFinderViewClick" ToolTip.Tip="as Icons"
+                                            Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=LargeIcons}">
+                                        <ic:SymbolIcon Symbol="Grid" FontSize="15"/>
+                                    </Button>
+                                    <Button Classes="segment" Tag="Details" Click="OnFinderViewClick" ToolTip.Tip="as List"
+                                            Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Details}">
+                                        <ic:SymbolIcon Symbol="TextBulletList" FontSize="15"/>
+                                    </Button>
+                                    <Button Classes="segment" Tag="Columns" Click="OnFinderViewClick" ToolTip.Tip="as Columns"
+                                            Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Columns}">
+                                        <ic:SymbolIcon Symbol="LayoutColumnThree" FontSize="15"/>
+                                    </Button>
+                                    <Button Classes="segment" Tag="Tiles" Click="OnFinderViewClick" ToolTip.Tip="as Gallery"
+                                            Classes.checked="{Binding FileListViewModel.SelectedPreset, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Tiles}">
+                                        <ic:SymbolIcon Symbol="ImageMultiple" FontSize="15"/>
+                                    </Button>
+                                </StackPanel>
+                            </Border>
+
+                            <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="4" Margin="0,0,10,0" VerticalAlignment="Center">
+                                <Button x:Name="SplitViewButton" Classes="cmd finderTool" Classes.active="{Binding IsSplitViewActive}" Command="{Binding ToggleSplitViewCommand}"
+                                        ToolTip.Tip="Split view (Ctrl+\)">
+                                    <ic:SymbolIcon Symbol="SplitVertical" FontSize="15"/>
+                                </Button>
+                                <views:AppMenu x:Name="ToolsMenu" Placement="BottomEdgeAlignedRight" VerticalAlignment="Center"/>
+                            </StackPanel>
+
+                            <!-- Search: a rounded field with the magnifier first, as Finder's. -->
+                            <Border Grid.Column="5" Width="210" Height="28" CornerRadius="7" Background="{DynamicResource FieldBrush}"
+                                    BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" VerticalAlignment="Center">
+                                <Grid ColumnDefinitions="Auto,*,Auto">
+                                    <ic:SymbolIcon Symbol="Search" FontSize="13" Foreground="{Binding IndexIconBrush}" Margin="9,0,2,0" VerticalAlignment="Center"
+                                                   ToolTip.Tip="{Binding IndexDetailStatus}"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding SearchPlaceholder}" Foreground="{DynamicResource TextMuted}" FontSize="12.5" Margin="4,0"
+                                               VerticalAlignment="Center" IsHitTestVisible="False" TextTrimming="CharacterEllipsis"
+                                               IsVisible="{Binding IsSearchPlaceholderVisible}"/>
+                                    <TextBox Grid.Column="1" x:Name="GlobalSearchBox" Classes="bare" Text="{Binding SearchBoxDisplayText, Mode=TwoWay}"
+                                             IsEnabled="{Binding IsSearchEnabled}" FontSize="12.5" Margin="4,0" VerticalAlignment="Center"
+                                             ToolTip.Tip="{Binding IndexDetailStatus}" KeyDown="OnGlobalSearchKeyDown"/>
+                                    <Button Grid.Column="2" Classes="cmd" Padding="4" Margin="0,0,3,0" VerticalAlignment="Center" IsVisible="{Binding IsSearchActive}"
+                                            Command="{Binding Search.ClearCommand}" ToolTip.Tip="Clear search (Esc)">
+                                        <ic:SymbolIcon Symbol="Dismiss" FontSize="11"/>
+                                    </Button>
+                                </Grid>
+                            </Border>
+                        </Grid>
+                    </Border>
+
+                    <!-- ===== Body: file list(s) or search results | preview ===== -->
+                    <Grid Grid.Row="1" x:Name="BodyGrid" ColumnDefinitions="*,240">
+                        <Border Grid.Column="0" x:Name="MainViewHost" Background="{DynamicResource ContentBrush}">
+                            <!-- Tabs: the bar docks above the panes (Top) or beside them (Left, Right); MainWindowBase docks it by the
+                                 setting. Each tab owns its panes: the views below show the selected tab's. -->
+                            <DockPanel x:Name="TabbedArea">
+                                <tabs:TabStripView x:Name="TabStrip" DockPanel.Dock="Top" DataContext="{Binding Tabs}"/>
+                                <Panel>
+                                    <Grid x:Name="PaneGrid" ColumnDefinitions="*,0,0" IsVisible="{Binding !IsSearchActive}">
+                                        <views:FileListView Grid.Column="0" x:Name="PrimaryPane" DataContext="{Binding PrimaryFileListViewModel}"/>
+                                        <GridSplitter Grid.Column="1" x:Name="PaneSplitter" Width="3" ResizeDirection="Columns" IsVisible="False"/>
+                                        <views:FileListView Grid.Column="2" x:Name="SecondaryPane" DataContext="{Binding SecondaryFileListViewModel}" IsVisible="False"/>
+                                    </Grid>
+
+                                    <searchv:SearchResultsView x:Name="SearchResultsPanel" DataContext="{Binding Search}" IsVisible="{Binding IsActive}"/>
+
+                                    <views:FileOperationsPanel x:Name="OperationsPanel" DataContext="{Binding Operations}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,16" ZIndex="900"/>
+
+                                    <Border x:Name="ToastBorder" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,20"
+                                            MaxWidth="320" Padding="16,12" CornerRadius="12"
+                                            Background="{DynamicResource MenuBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1"
+                                            Opacity="0" IsHitTestVisible="False" ZIndex="1000" BoxShadow="0 6 20 0 #40000000">
+                                        <Border.Transitions>
+                                            <Transitions>
+                                                <DoubleTransition Property="Opacity" Duration="0:0:0.32"/>
+                                                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.32" Easing="CubicEaseOut"/>
+                                            </Transitions>
+                                        </Border.Transitions>
+                                        <Border.RenderTransform>
+                                            <TranslateTransform X="340"/>
+                                        </Border.RenderTransform>
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <ic:SymbolIcon Grid.Column="0" Symbol="Info" FontSize="20" Foreground="{DynamicResource SelectedAccent}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="1" x:Name="ToastText" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </Panel>
+                            </DockPanel>
+                        </Border>
+
+                        <!-- Preview (Finder's preview pane): the shared details pane. -->
+                        <Border Grid.Column="1" x:Name="DetailsPanel" Background="{DynamicResource ContentBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1,0,0,0">
+                            <views:DetailsPaneView x:Name="DetailsPane"/>
+                        </Border>
+                        <GridSplitter Grid.Column="1" x:Name="DetailsSplitter" Width="5" HorizontalAlignment="Left" Background="Transparent" ResizeDirection="Columns" ZIndex="1"/>
+                    </Grid>
+
+                    <!-- ===== Path bar: where you are, clickable (the omnibar: breadcrumbs, typing, suggestions) ===== -->
+                    <Border Grid.Row="2" x:Name="PathBar" Background="{DynamicResource ContentBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0" Padding="8,3">
+                        <omni:OmnibarView x:Name="Omnibar" DataContext="{Binding Omnibar}" VerticalAlignment="Center"/>
+                    </Border>
+
+                    <!-- ===== Status bar: item count and selection in the middle, as Finder's ===== -->
+                    <Border Grid.Row="3" x:Name="StatusBar" Background="{DynamicResource FinderToolbarBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0">
+                        <Grid Margin="8,4,12,4" ColumnDefinitions="*,Auto,*" MinHeight="26">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Classes="cmd" Width="24" Height="22" Padding="0" Click="OnToggleLeftPanelClick" ToolTip.Tip="Show/hide sidebar">
+                                    <ic:SymbolIcon Symbol="PanelLeft" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                </Button>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="6">
+                                <TextBlock x:Name="StatusLine" Text="{Binding FileListViewModel.StatusText}" IsVisible="{Binding !FileListViewModel.IsLoading}"
+                                           FontSize="11.5" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="420"/>
+                                <TextBlock Text="Loading…" IsVisible="{Binding FileListViewModel.IsLoading}" FontSize="11.5" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding FileListViewModel.SelectionSummaryText}" FontSize="11.5" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center" Spacing="8">
+                                <Slider Classes="modern" Width="90" VerticalAlignment="Center"
+                                        Minimum="32" Maximum="256" SmallChange="4" LargeChange="16"
+                                        ToolTip.Tip="Icon size" Value="{Binding FileListViewModel.IconSize, Mode=TwoWay}"/>
+                                <Button x:Name="CycleViewButton" Classes="cmd" Width="24" Height="22" Padding="0" Click="OnCycleViewClick" ToolTip.Tip="Cycle view">
+                                    <ic:SymbolIcon Symbol="Grid" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                </Button>
+                                <Button Classes="cmd" Width="24" Height="22" Padding="0" Click="OnToggleDetailsPanelClick" ToolTip.Tip="Show/hide preview">
+                                    <ic:SymbolIcon Symbol="PanelRight" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- Resize grips, used only where the app draws its own frame (Linux). -->
+        <Panel x:Name="ResizeGrips" IsVisible="False">
+            <Border Tag="North" Height="5" VerticalAlignment="Top" Margin="8,0" Background="Transparent" Cursor="TopSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="South" Height="5" VerticalAlignment="Bottom" Margin="8,0" Background="Transparent" Cursor="BottomSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="West" Width="5" HorizontalAlignment="Left" Margin="0,8" Background="Transparent" Cursor="LeftSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="East" Width="5" HorizontalAlignment="Right" Margin="0,8" Background="Transparent" Cursor="RightSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="NorthWest" Width="8" Height="8" HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent" Cursor="TopLeftCorner" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="NorthEast" Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Top" Background="Transparent" Cursor="TopRightCorner" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="SouthWest" Width="8" Height="8" HorizontalAlignment="Left" VerticalAlignment="Bottom" Background="Transparent" Cursor="BottomLeftCorner" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="SouthEast" Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Bottom" Background="Transparent" Cursor="BottomRightCorner" PointerPressed="OnResizeGripPressed"/>
+        </Panel>
+    </Panel>
+</Window>

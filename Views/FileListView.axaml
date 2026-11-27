@@ -1,0 +1,993 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The file list pane: every view mode of a folder (Details, List, Icons, Tiles, Timeline, Columns, Nexus), the This PC,
+    Home and trash surfaces, and the error/empty states. Exactly one surface is visible at a time; FileListView.axaml.cs decides
+    which (one place, from the view model's surface, view mode and error), and only the visible flat list is given the
+    folder's items, so hidden lists hold no containers, no selection and no reference to the current folder.
+
+    Every list is a FileListBox (Controls/FileListBox.cs): a virtualizing ListBox with Explorer's multiple selection,
+    kept as index ranges, so a selection survives scrolling, recycling and item re-creation, and keyboard navigation,
+    Shift ranges and Ctrl toggles are the platform's. Details, List, Icons, Tiles, Columns and Nexus lay out with
+    VirtualizingWrapPanel (Controls/VirtualizingWrapPanel.cs: a wrap grid, or a single column of rows); Timeline, whose
+    rows differ in height (group headers), with Avalonia's VirtualizingStackPanel.
+
+    Pointer gestures that span lists (double-click open, drag out, rubber band, drops, context menus) are handled once on
+    this control in code-behind, keyed off the event source, rather than wired per element as in the WPF build.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ByteExplorer.ViewModels"
+             xmlns:views="using:ByteExplorer.Views"
+             xmlns:ctl="using:ByteExplorer.Controls"
+             xmlns:conv="using:ByteExplorer.Infrastructure.Converters"
+             xmlns:ic="using:ByteExplorer.Icons"
+             x:Class="ByteExplorer.Views.FileListView"
+             x:DataType="vm:FileListViewModel">
+
+    <UserControl.Resources>
+        <!--
+            Item container themes. Rows draw selection/hover on the container itself (one ContentPresenter, the cheapest
+            container possible); tiles and timeline rows use a plain container and draw a card in their item template,
+            styled through the container's state (ListBoxItem:selected Border.tile and so on).
+        -->
+        <ControlTheme x:Key="RowItemTheme" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Background="{TemplateBinding Background}"
+                                      BorderBrush="{TemplateBinding BorderBrush}"
+                                      BorderThickness="{TemplateBinding BorderThickness}"
+                                      CornerRadius="{TemplateBinding CornerRadius}"
+                                      Padding="{TemplateBinding Padding}"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                </ControlTemplate>
+            </Setter>
+            <Style Selector="^:pointerover">
+                <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+            </Style>
+            <Style Selector="^:selected">
+                <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+            </Style>
+            <Style Selector="^:focus-visible">
+                <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+            </Style>
+            <Style Selector="^.dropTarget">
+                <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+                <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+            </Style>
+        </ControlTheme>
+
+        <!-- List, Columns and Nexus rows: the WPF build's 2px gap between rows. -->
+        <ControlTheme x:Key="SpacedRowItemTheme" TargetType="ListBoxItem" BasedOn="{StaticResource RowItemTheme}">
+            <Setter Property="Margin" Value="0,1"/>
+        </ControlTheme>
+
+        <ControlTheme x:Key="CardItemTheme" TargetType="ListBoxItem">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Stretch"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Background="{TemplateBinding Background}"
+                                      Padding="{TemplateBinding Padding}"
+                                      Content="{TemplateBinding Content}"
+                                      ContentTemplate="{TemplateBinding ContentTemplate}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <Style Selector="ListBox.fileList">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+
+        <Style Selector="ctl|FastText.cell">
+            <Setter Property="Margin" Value="8,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+        <Style Selector="ctl|FastText.secondary">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <!-- Hidden and system items in the template-based views (Timeline, Columns, Nexus), as FileItemView draws them in
+             the others: hidden translucent, system text in the system-item color. -->
+        <Style Selector="Grid.hiddenItem">
+            <Setter Property="Opacity" Value="0.55"/>
+        </Style>
+        <Style Selector="Grid.systemItem ctl|FastText">
+            <Setter Property="Foreground" Value="{DynamicResource SystemItemText}"/>
+        </Style>
+        <Style Selector="TextBlock.cell">
+            <Setter Property="Margin" Value="8,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+        <Style Selector="TextBlock.secondary">
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Details column headers: flat, hover background, a transparent resize grip on the right edge. -->
+        <Style Selector="Button.colHeader">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Background="{TemplateBinding Background}"
+                                      Padding="{TemplateBinding Padding}"
+                                      Content="{TemplateBinding Content}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="Center"/>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.colHeader:pointerover">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="Button.colHeader:pressed">
+            <Setter Property="Background" Value="{DynamicResource PressedBg}"/>
+        </Style>
+        <Style Selector="Thumb.colGrip">
+            <Setter Property="Width" Value="6"/>
+            <Setter Property="Margin" Value="0,0,-3,0"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Cursor" Value="SizeWestEast"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="Transparent"/>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ic|SymbolIcon.sortGlyph">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Width" Value="10"/>
+            <Setter Property="Height" Value="10"/>
+            <Setter Property="Margin" Value="4,0,0,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Icons tiles and Tiles cards: drawn in the item template, state from the container. -->
+        <Style Selector="Border.tile">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="3"/>
+        </Style>
+        <Style Selector="Border.tile.card">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="10,8"/>
+        </Style>
+        <Style Selector="ListBoxItem:pointerover Border.tile">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected Border.tile, ListBoxItem.dropTarget Border.tile">
+            <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected Border.tile.card, ListBoxItem:focus-visible Border.tile, ListBoxItem.dropTarget Border.tile">
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+
+        <!-- Timeline: the header sits above a group's first row and never takes the row's selection/hover. -->
+        <Style Selector="Border.groupHeader">
+            <Setter Property="Background" Value="{DynamicResource TitleBarBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="12,7"/>
+            <Setter Property="Margin" Value="0,12,0,2"/>
+        </Style>
+        <Style Selector="Border.groupHeader.first">
+            <Setter Property="Margin" Value="0,0,0,2"/>
+        </Style>
+        <Style Selector="Border.timelineRow">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Margin" Value="0,1"/>
+            <Setter Property="Padding" Value="11,0"/>
+        </Style>
+        <Style Selector="Border.timelineRow:pointerover">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="ListBoxItem:selected Border.timelineRow, ListBoxItem.dropTarget Border.timelineRow">
+            <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+        </Style>
+        <Style Selector="ListBoxItem:focus-visible Border.timelineRow, ListBoxItem.dropTarget Border.timelineRow">
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+
+        <!-- Columns: the header of the column that New folder/Paste and the status bar target. -->
+        <Style Selector="Border.paneHeader">
+            <Setter Property="Background" Value="{DynamicResource TitleBarBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Padding" Value="10,7"/>
+        </Style>
+        <Style Selector="Border.paneHeader.focused">
+            <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+        </Style>
+
+        <!-- This PC and Home: clickable rows/tiles are flat buttons (keyboard-reachable, unlike the WPF build's Borders). -->
+        <Style Selector="Button.tile">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="12,10"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <ContentPresenter Name="PART_ContentPresenter"
+                                      Background="{TemplateBinding Background}"
+                                      BorderBrush="{TemplateBinding BorderBrush}"
+                                      BorderThickness="{TemplateBinding BorderThickness}"
+                                      CornerRadius="{TemplateBinding CornerRadius}"
+                                      Padding="{TemplateBinding Padding}"
+                                      Content="{TemplateBinding Content}"
+                                      HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                      VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.tile.flat">
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="Padding" Value="8,6"/>
+        </Style>
+        <Style Selector="Button.tile:pointerover">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="Button.tile:pressed">
+            <Setter Property="Background" Value="{DynamicResource PressedBg}"/>
+        </Style>
+        <Style Selector="Button.tile:focus-visible">
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+        <Style Selector="Button.tile.flat:focus-visible">
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Button.outline">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="Padding" Value="10,6"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Cursor" Value="Hand"/>
+        </Style>
+
+        <Style Selector="TextBlock.sectionTitle">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+        <Style Selector="TextBlock.placeholder">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+        </Style>
+        <Style Selector="ProgressBar.usage">
+            <Setter Property="Height" Value="6"/>
+            <Setter Property="MinHeight" Value="6"/>
+            <Setter Property="Minimum" Value="0"/>
+            <Setter Property="Maximum" Value="100"/>
+            <Setter Property="Background" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+        <Style Selector="Grid.driveRow.unreachable">
+            <Setter Property="Opacity" Value="0.55"/>
+        </Style>
+        <Style Selector="ProgressBar.usage.nearFull">
+            <Setter Property="Foreground" Value="{DynamicResource UnreachableRed}"/>
+        </Style>
+
+        <!-- Home dashboard stat tiles (the WPF HomeStatTile/HomeStatValue/HomeStatLabel/HomeStatSubLabel styles). -->
+        <Style Selector="Border.statTile">
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="Margin" Value="0,0,10,10"/>
+            <Setter Property="MinWidth" Value="150"/>
+        </Style>
+        <Style Selector="TextBlock.statValue">
+            <Setter Property="FontSize" Value="22"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="TextBlock.statLabel">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+        <Style Selector="TextBlock.statSub">
+            <Setter Property="FontSize" Value="10"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+            <Setter Property="Opacity" Value="0.8"/>
+        </Style>
+    </UserControl.Styles>
+
+    <!-- Transparent background: the empty area of every surface is hit-testable for the background context menu. -->
+    <Grid x:Name="Root" Background="Transparent">
+
+        <!-- ===================== DETAILS ===================== -->
+        <DockPanel x:Name="DetailsHost" IsVisible="False">
+            <Border x:Name="DetailsHeaderStrip" DockPanel.Dock="Top" ClipToBounds="True" Padding="13,8,13,2" Background="Transparent">
+                <!-- The column headers, built from the chosen columns (FileListView.Columns.cs): click to sort, drag an edge to
+                     resize, right-click to hide a column or choose others. -->
+                <ctl:DetailsRowPanel x:Name="DetailsHeader" HorizontalAlignment="Left" Background="Transparent"/>
+            </Border>
+            <ctl:FileListBox x:Name="DetailsList" Classes="fileList" Padding="12,0,12,12" ItemMargin="{Binding DetailsItemMargin}"
+                     ItemContainerTheme="{StaticResource RowItemTheme}"
+                     ScrollViewer.HorizontalScrollBarVisibility="Auto">
+                <ctl:FileListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <ctl:VirtualizingWrapPanel SingleColumn="True"/>
+                    </ItemsPanelTemplate>
+                </ctl:FileListBox.ItemsPanel>
+                <ctl:FileListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FileListItemViewModel">
+                        <!-- Owner-drawn row (Controls/FileItemView): one control per item, no per-field bindings. -->
+                        <ctl:FileItemView Kind="Details"
+                                      ShowSystemIcons="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowSystemIcons}" ItemHeight="28" SecondaryForeground="{DynamicResource TextSecondary}"
+                                          IconSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).DetailsIconSize}"
+                                          FontSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).DetailsFontSize}"/>
+                    </DataTemplate>
+                </ctl:FileListBox.ItemTemplate>
+            </ctl:FileListBox>
+        </DockPanel>
+
+        <!-- ===================== LIST ===================== -->
+        <ctl:FileListBox x:Name="ListModeList" Classes="fileList" Padding="12" IsVisible="False" ItemMargin="{Binding ListItemMargin}"
+                 ItemContainerTheme="{StaticResource SpacedRowItemTheme}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ctl:FileListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <ctl:VirtualizingWrapPanel SingleColumn="True"/>
+                </ItemsPanelTemplate>
+            </ctl:FileListBox.ItemsPanel>
+            <ctl:FileListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:FileListItemViewModel">
+                    <ctl:FileItemView Kind="List"
+                                      ShowSystemIcons="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowSystemIcons}"
+                                      ItemHeight="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ListRowHeight}"
+                                      IconSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ListIconSize}"
+                                      FontSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ListFontSize}"/>
+                </DataTemplate>
+            </ctl:FileListBox.ItemTemplate>
+        </ctl:FileListBox>
+
+        <!-- ===================== ICONS ===================== -->
+        <ctl:FileListBox x:Name="IconsList" Classes="fileList" Padding="6" IsVisible="False" ItemMargin="{Binding IconsItemMargin}"
+                 ItemContainerTheme="{StaticResource CardItemTheme}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ctl:FileListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <ctl:VirtualizingWrapPanel/>
+                </ItemsPanelTemplate>
+            </ctl:FileListBox.ItemsPanel>
+            <ctl:FileListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:FileListItemViewModel">
+                    <Border Classes="tile">
+                        <ctl:FileItemView Kind="Icon"
+                                      ShowSystemIcons="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowSystemIcons}"
+                                      ShowThumbnails="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowThumbnails}"
+                                          ItemWidth="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TileWidth}"
+                                          ItemHeight="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TileHeight}"
+                                          IconSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).IconSize}"/>
+                    </Border>
+                </DataTemplate>
+            </ctl:FileListBox.ItemTemplate>
+        </ctl:FileListBox>
+
+        <!-- ===================== TILES ===================== -->
+        <ctl:FileListBox x:Name="TilesList" Classes="fileList" Padding="6" IsVisible="False" ItemMargin="{Binding TilesItemMargin}"
+                 ItemContainerTheme="{StaticResource CardItemTheme}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ctl:FileListBox.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <ctl:VirtualizingWrapPanel/>
+                </ItemsPanelTemplate>
+            </ctl:FileListBox.ItemsPanel>
+            <ctl:FileListBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:FileListItemViewModel">
+                    <Border Classes="tile card">
+                        <ctl:FileItemView Kind="Tile"
+                                      ShowSystemIcons="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowSystemIcons}" SecondaryForeground="{DynamicResource TextSecondary}"
+                                      ShowThumbnails="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowThumbnails}"
+                                          ItemWidth="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TilesItemWidth}"
+                                          ItemHeight="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TilesItemHeight}"
+                                          IconSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TilesIconSize}"
+                                          FontSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TilesNameFontSize}"
+                                          SecondaryFontSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TilesSubFontSize}"/>
+                    </Border>
+                </DataTemplate>
+            </ctl:FileListBox.ItemTemplate>
+        </ctl:FileListBox>
+
+        <!-- ===================== TIMELINE ===================== -->
+        <ctl:FileListBox x:Name="TimelineList" Classes="fileList" Padding="12" IsVisible="False"
+                 ItemContainerTheme="{StaticResource CardItemTheme}"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+            <ctl:FileListBox.ItemTemplate>
+                <DataTemplate x:DataType="views:TimelineRow">
+                    <StackPanel>
+                        <Border Classes="groupHeader" Classes.first="{Binding IsFirstGroup}" IsVisible="{Binding HasHeader}">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="{Binding Header}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                <TextBlock Classes="secondary" Text="{Binding CountText}" FontSize="11" Margin="10,0,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Classes="timelineRow"
+                                Height="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TimelineRowHeight}">
+                            <DockPanel>
+                            <Border Classes="itemCheck" DockPanel.Dock="Left" Width="26" Background="Transparent"
+                                                    IsVisible="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowCheckBoxes}">
+                                                <CheckBox IsHitTestVisible="False" Focusable="False" MinWidth="0" MinHeight="0" Padding="0" VerticalAlignment="Center"
+                                                          IsChecked="{Binding $parent[ListBoxItem].IsSelected, Mode=OneWay}"/>
+                                            </Border>
+                            <Grid ColumnDefinitions="32,*,150,90" Classes.hiddenItem="{Binding Item.IsHidden}" Classes.systemItem="{Binding Item.IsSystem}">
+                                <ic:SymbolIcon Symbol="{Binding Item.IconGlyph}" IconVariant="Filled" Foreground="{Binding Item.IconColorBrush}"
+                                               VerticalAlignment="Center" HorizontalAlignment="Left"
+                                               FontSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TimelineIconSize}" Width="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TimelineIconSize}" Height="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TimelineIconSize}"/>
+                                <ctl:FastText Grid.Column="1" Text="{Binding Item.DisplayName}" Margin="10,0,8,0" VerticalAlignment="Center"
+                                           FontSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).TimelineFontSize}"/>
+                                <ctl:FastText Grid.Column="2" Classes="secondary" Text="{Binding Item.DateModifiedDisplay}" FontSize="12"/>
+                                <ctl:FastText Grid.Column="3" Classes="secondary" Text="{Binding Item.SizeDisplay}" FontSize="12"
+                                           HorizontalAlignment="Right"/>
+                            </Grid>
+                            </DockPanel>
+                        </Border>
+                    </StackPanel>
+                </DataTemplate>
+            </ctl:FileListBox.ItemTemplate>
+        </ctl:FileListBox>
+
+        <!-- ===================== COLUMNS (Miller columns) ===================== -->
+        <ScrollViewer x:Name="ColumnsScroller" IsVisible="False" Padding="12"
+                      HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+            <ItemsControl x:Name="ColumnsHost" ItemsSource="{Binding ColumnPanes}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal"/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ColumnPane">
+                        <Border Width="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ColumnsWidth}"
+                                BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,1,0"
+                                Background="{DynamicResource ContentBrush}">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" Classes="paneHeader" Classes.focused="{Binding IsFocused}">
+                                    <TextBlock Text="{Binding Header}" FontWeight="SemiBold" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                </Border>
+                                <ctl:FileListBox Classes="fileList columnList" ItemsSource="{Binding Items}"
+                                         ItemContainerTheme="{StaticResource SpacedRowItemTheme}"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ctl:FileListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <ctl:VirtualizingWrapPanel SingleColumn="True"/>
+                                        </ItemsPanelTemplate>
+                                    </ctl:FileListBox.ItemsPanel>
+                                    <ctl:FileListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:FileListItemViewModel">
+                                            <DockPanel>
+                                            <Border Classes="itemCheck" DockPanel.Dock="Left" Width="26" Background="Transparent"
+                                                    IsVisible="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowCheckBoxes}">
+                                                <CheckBox IsHitTestVisible="False" Focusable="False" MinWidth="0" MinHeight="0" Padding="0" VerticalAlignment="Center"
+                                                          IsChecked="{Binding $parent[ListBoxItem].IsSelected, Mode=OneWay}"/>
+                                            </Border>
+                                            <Grid ColumnDefinitions="26,*,14" Margin="9,0" Classes.hiddenItem="{Binding IsHidden}" Classes.systemItem="{Binding IsSystem}"
+                                                  Height="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ColumnsRowHeight}">
+                                                <ctl:ItemIconView Path="{Binding FullPath}" IsDirectory="{Binding IsDirectory}" IsSystem="{Binding IsSystem}" Glyph="{Binding IconGlyph}" GlyphBrush="{Binding IconColorBrush}"
+                                                               ShowSystemIcons="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowSystemIcons}"
+                                                               VerticalAlignment="Center" HorizontalAlignment="Left"
+                                                               Width="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ColumnsIconSize}" Height="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ColumnsIconSize}"/>
+                                                <ctl:FastText Grid.Column="1" Text="{Binding DisplayName}" Margin="4,0" VerticalAlignment="Center"
+                                                           FontSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ColumnsFontSize}"/>
+                                                <ic:SymbolIcon Grid.Column="2" Classes="chevron" Symbol="ChevronRight" IsVisible="{Binding IsDirectory}"/>
+                                            </Grid>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ctl:FileListBox.ItemTemplate>
+                                </ctl:FileListBox>
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- ===================== NEXUS (category cards) ===================== -->
+        <ScrollViewer x:Name="NexusScroller" IsVisible="False" Padding="12"
+                      HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <ItemsControl x:Name="NexusHost" ItemsSource="{Binding NexusClusters}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:NexusCluster">
+                        <Border Width="280" MinHeight="160" Margin="0,0,12,12" CornerRadius="10"
+                                BorderBrush="{DynamicResource BorderLight}" BorderThickness="1"
+                                Background="{DynamicResource ContentBrush}" ClipToBounds="True">
+                            <DockPanel>
+                                <Border DockPanel.Dock="Top" CornerRadius="10,10,0,0" Padding="14,12" Background="{DynamicResource TitleBarBrush}">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <Border Width="32" Height="32" CornerRadius="8" Background="{DynamicResource HoverBg}" VerticalAlignment="Center">
+                                            <ic:SymbolIcon Symbol="{Binding Glyph}" IconVariant="Filled" FontSize="16" Width="16" Height="16"
+                                                           Foreground="{DynamicResource SelectedAccent}"
+                                                           HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                        </Border>
+                                        <StackPanel Grid.Column="1" Margin="12,0,0,0" VerticalAlignment="Center">
+                                            <ctl:FastText Text="{Binding Title}" FontWeight="SemiBold" FontSize="14"/>
+                                            <TextBlock Classes="secondary" FontSize="11">
+                                                <Run Text="{Binding Count}"/><Run Text=" items · "/><Run Text="{Binding SizeDisplay}"/>
+                                            </TextBlock>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
+                                <ctl:FileListBox Classes="fileList nexusList" ItemsSource="{Binding Items}" MaxHeight="220"
+                                         ItemContainerTheme="{StaticResource SpacedRowItemTheme}"
+                                         ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                    <ctl:FileListBox.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <ctl:VirtualizingWrapPanel SingleColumn="True"/>
+                                        </ItemsPanelTemplate>
+                                    </ctl:FileListBox.ItemsPanel>
+                                    <ctl:FileListBox.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:FileListItemViewModel">
+                                            <DockPanel>
+                                            <Border Classes="itemCheck" DockPanel.Dock="Left" Width="26" Background="Transparent"
+                                                    IsVisible="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowCheckBoxes}">
+                                                <CheckBox IsHitTestVisible="False" Focusable="False" MinWidth="0" MinHeight="0" Padding="0" VerticalAlignment="Center"
+                                                          IsChecked="{Binding $parent[ListBoxItem].IsSelected, Mode=OneWay}"/>
+                                            </Border>
+                                            <Grid ColumnDefinitions="26,*,64" Margin="13,0" Classes.hiddenItem="{Binding IsHidden}" Classes.systemItem="{Binding IsSystem}"
+                                                  Height="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).NexusRowHeight}">
+                                                <ctl:ItemIconView Path="{Binding FullPath}" IsDirectory="{Binding IsDirectory}" IsSystem="{Binding IsSystem}" Glyph="{Binding IconGlyph}" GlyphBrush="{Binding IconColorBrush}"
+                                                               ShowSystemIcons="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).ShowSystemIcons}"
+                                                               VerticalAlignment="Center" HorizontalAlignment="Left"
+                                                               Width="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).NexusIconSize}" Height="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).NexusIconSize}"/>
+                                                <ctl:FastText Grid.Column="1" Text="{Binding DisplayName}" Margin="4,0,6,0" VerticalAlignment="Center"
+                                                           FontSize="{Binding $parent[UserControl].((vm:FileListViewModel)DataContext).NexusFontSize}"/>
+                                                <ctl:FastText Grid.Column="2" Classes="secondary" Text="{Binding SizeDisplay}" FontSize="11"
+                                                           HorizontalAlignment="Right"/>
+                                            </Grid>
+                                            </DockPanel>
+                                        </DataTemplate>
+                                    </ctl:FileListBox.ItemTemplate>
+                                </ctl:FileListBox>
+                            </DockPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+        </ScrollViewer>
+
+        <!-- ===================== THIS PC (drives, folders, recent) ===================== -->
+        <ScrollViewer x:Name="ThisPcScroller" IsVisible="False" Padding="16,12,16,16"
+                      Background="{DynamicResource ContentBrush}"
+                      HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <TextBlock Classes="sectionTitle" Text="Devices and drives"/>
+                <ItemsControl ItemsSource="{Binding ThisPcDrives}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ThisPcDriveItem">
+                            <Button Classes="tile" Margin="0,0,0,6" Click="OnThisPcDriveClick" ToolTip.Tip="{Binding StatusTooltip}">
+                                <Grid Classes="driveRow" Classes.unreachable="{Binding IsUnreachable}" ColumnDefinitions="36,*,220,160">
+                                    <ic:SymbolIcon Symbol="{Binding Glyph}" FontSize="22" Width="22" Height="22" VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource SelectedAccent}"/>
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0,12,0">
+                                        <TextBlock Text="{Binding DisplayName}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Classes="secondary" Text="{Binding TypeDisplay}" FontSize="11"/>
+                                        <TextBlock Text="Not responding" FontSize="11" Foreground="{DynamicResource UnreachableRed}"
+                                                   IsVisible="{Binding IsUnreachable}"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center" Margin="0,0,12,0">
+                                        <ProgressBar Classes="usage" Classes.nearFull="{Binding IsNearFull}" Value="{Binding UsedPercent}"/>
+                                        <TextBlock Classes="secondary" Text="{Binding CapacityDisplay}" FontSize="11" Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="3" Classes="secondary" Text="{Binding LocationDisplay}" FontSize="12"
+                                               HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"/>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <Border Height="1" Background="{DynamicResource BorderLight}" Margin="0,16,0,12"/>
+
+                <!-- The same six folders as the sidebar's Quick Access; Tag names the folder (see ResolveQuickFolder). -->
+                <TextBlock Classes="sectionTitle" Text="Folders"/>
+                <WrapPanel>
+                    <Button Classes="tile" Width="200" Margin="0,0,10,10" Padding="10,8" Tag="Desktop" Click="OnThisPcFolderClick">
+                        <StackPanel Orientation="Horizontal">
+                            <ic:SymbolIcon Symbol="Folder" IconVariant="Filled" FontSize="18" Width="18" Height="18" Foreground="{DynamicResource HomeBrown}"/>
+                            <TextBlock Text="Desktop" Margin="10,0,0,0" FontSize="13" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="tile" Width="200" Margin="0,0,10,10" Padding="10,8" Tag="Documents" Click="OnThisPcFolderClick">
+                        <StackPanel Orientation="Horizontal">
+                            <ic:SymbolIcon Symbol="Folder" IconVariant="Filled" FontSize="18" Width="18" Height="18" Foreground="{DynamicResource DocBlue}"/>
+                            <TextBlock Text="Documents" Margin="10,0,0,0" FontSize="13" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="tile" Width="200" Margin="0,0,10,10" Padding="10,8" Tag="Downloads" Click="OnThisPcFolderClick">
+                        <StackPanel Orientation="Horizontal">
+                            <ic:SymbolIcon Symbol="Folder" IconVariant="Filled" FontSize="18" Width="18" Height="18" Foreground="{DynamicResource CloudBlue}"/>
+                            <TextBlock Text="Downloads" Margin="10,0,0,0" FontSize="13" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="tile" Width="200" Margin="0,0,10,10" Padding="10,8" Tag="Pictures" Click="OnThisPcFolderClick">
+                        <StackPanel Orientation="Horizontal">
+                            <ic:SymbolIcon Symbol="Folder" IconVariant="Filled" FontSize="18" Width="18" Height="18" Foreground="{DynamicResource PictureBlue}"/>
+                            <TextBlock Text="Pictures" Margin="10,0,0,0" FontSize="13" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="tile" Width="200" Margin="0,0,10,10" Padding="10,8" Tag="Music" Click="OnThisPcFolderClick">
+                        <StackPanel Orientation="Horizontal">
+                            <ic:SymbolIcon Symbol="Folder" IconVariant="Filled" FontSize="18" Width="18" Height="18" Foreground="{DynamicResource MusicPink}"/>
+                            <TextBlock Text="Music" Margin="10,0,0,0" FontSize="13" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Classes="tile" Width="200" Margin="0,0,10,10" Padding="10,8" Tag="Videos" Click="OnThisPcFolderClick">
+                        <StackPanel Orientation="Horizontal">
+                            <ic:SymbolIcon Symbol="Folder" IconVariant="Filled" FontSize="18" Width="18" Height="18" Foreground="{DynamicResource VideoPurple}"/>
+                            <TextBlock Text="Videos" Margin="10,0,0,0" FontSize="13" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                </WrapPanel>
+
+                <Border Height="1" Background="{DynamicResource BorderLight}" Margin="0,16,0,12"/>
+
+                <StackPanel IsVisible="{Binding ShowRecentFiles}">
+                <TextBlock Classes="sectionTitle" Text="Recent"/>
+                <Grid ColumnDefinitions="22,*,160,100,110" Margin="8,0,8,4">
+                    <TextBlock Grid.Column="1" Classes="secondary" Text="Name" FontSize="12" Margin="6,0,0,0"/>
+                    <TextBlock Grid.Column="2" Classes="secondary" Text="Date accessed" FontSize="12"/>
+                    <TextBlock Grid.Column="3" Classes="secondary" Text="Type" FontSize="12"/>
+                    <TextBlock Grid.Column="4" Classes="secondary" Text="Size" FontSize="12" HorizontalAlignment="Right"/>
+                </Grid>
+                <ItemsControl ItemsSource="{Binding ThisPcRecent}">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="vm:ThisPcRecentItem">
+                            <Button Classes="tile flat" Click="OnThisPcRecentClick" ToolTip.Tip="{Binding FullPath}">
+                                <Grid ColumnDefinitions="22,*,160,100,110">
+                                    <ic:SymbolIcon Symbol="{Binding Glyph}" FontSize="15" Width="15" Height="15" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="13" Margin="6,0,8,0"
+                                               TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding DateAccessDisplay}" FontSize="12"/>
+                                    <TextBlock Grid.Column="3" Classes="secondary" Text="{Binding TypeDisplay}" FontSize="12"/>
+                                    <TextBlock Grid.Column="4" Classes="secondary" Text="{Binding SizeDisplay}" FontSize="12" HorizontalAlignment="Right"/>
+                                </Grid>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ===================== TRASH / RECYCLE BIN (Views/TrashView.axaml) ===================== -->
+        <views:TrashView x:Name="TrashSurface" IsVisible="False"/>
+
+        <!-- ===================== HOME (usage analytics dashboard) ===================== -->
+        <ScrollViewer x:Name="HomeScroller" IsVisible="False" Padding="16,12,16,16"
+                      Background="{DynamicResource ContentBrush}"
+                      HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <StackPanel>
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,16">
+                    <StackPanel>
+                        <TextBlock Text="Your activity" FontSize="20" FontWeight="Bold"/>
+                        <TextBlock Classes="secondary" Text="{Binding HomeDashboard.SinceText}" FontSize="12" Margin="0,4,0,0"/>
+                        <TextBlock Classes="secondary" FontSize="11" Margin="0,2,0,0" FontStyle="Italic"
+                                   Text="All of this stays on your device — nothing here is ever sent anywhere."/>
+                    </StackPanel>
+                    <Button Grid.Column="1" Classes="outline" Content="Clear activity history" VerticalAlignment="Top"
+                            Command="{Binding ClearAnalyticsDataCommand}"/>
+                </Grid>
+
+                <WrapPanel Margin="0,0,0,4">
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.TotalFolderVisitsText}"/>
+                            <TextBlock Classes="statLabel" Text="Folder visits"/>
+                            <TextBlock Classes="statSub" Text="{Binding HomeDashboard.UniqueFoldersText, StringFormat='{}{0} unique'}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.TotalFilesOpenedText}"/>
+                            <TextBlock Classes="statLabel" Text="Files opened"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.TotalSearchesText}"/>
+                            <TextBlock Classes="statLabel" Text="Searches run"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.TotalSessionsText}"/>
+                            <TextBlock Classes="statLabel" Text="App sessions"/>
+                            <TextBlock Classes="statSub" Text="{Binding HomeDashboard.TotalUsageTimeText, StringFormat='{}{0} total'}"/>
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
+
+                <WrapPanel Margin="0,0,0,4">
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.TotalOperationsText}"/>
+                            <TextBlock Classes="statLabel" Text="File operations"/>
+                            <TextBlock Classes="statSub" Text="{Binding HomeDashboard.OperationSuccessRateText}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.TotalFoldersCreatedText}"/>
+                            <TextBlock Classes="statLabel" Text="Folders created"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.TotalItemsRenamedText}"/>
+                            <TextBlock Classes="statLabel" Text="Items renamed"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.NetworkReliabilityText}"/>
+                            <TextBlock Classes="statLabel" Text="Network reliability"/>
+                            <TextBlock Classes="statSub" Text="{Binding HomeDashboard.NetworkOperationsSubText}"/>
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
+
+                <WrapPanel Margin="0,0,0,20">
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.CurrentStreakText}"/>
+                            <TextBlock Classes="statLabel" Text="Current streak"/>
+                            <TextBlock Classes="statSub" Text="{Binding HomeDashboard.LongestStreakSubText}"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.AverageSessionText}"/>
+                            <TextBlock Classes="statLabel" Text="Average session"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.MostActiveHourText}"/>
+                            <TextBlock Classes="statLabel" Text="Most active hour"/>
+                        </StackPanel>
+                    </Border>
+                    <Border Classes="statTile">
+                        <StackPanel>
+                            <TextBlock Classes="statValue" Text="{Binding HomeDashboard.MostActiveDayText}"/>
+                            <TextBlock Classes="statLabel" Text="Most active day"/>
+                        </StackPanel>
+                    </Border>
+                </WrapPanel>
+
+                <TextBlock Classes="sectionTitle" Text="Activity by hour"/>
+                <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" CornerRadius="6" Padding="12,10" Margin="0,0,0,20">
+                    <ItemsControl ItemsSource="{Binding HomeDashboard.HourlyActivity}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <UniformGrid Rows="1" Height="64"/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:HourBarViewModel">
+                                <Panel Background="Transparent" Margin="1,0" ToolTip.Tip="{Binding ToolTipText}">
+                                    <Border Height="{Binding BarHeight}" VerticalAlignment="Bottom" CornerRadius="1"
+                                            Background="{DynamicResource SelectedAccent}"/>
+                                </Panel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <Grid ColumnDefinitions="*,20,*">
+                    <StackPanel>
+                        <StackPanel IsVisible="{Binding ShowFrequentFolders}">
+                        <TextBlock Classes="sectionTitle" Text="Favorite folders"/>
+                        <ItemsControl ItemsSource="{Binding HomeDashboard.FavoriteFolders}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FavoriteFolderRowViewModel">
+                                    <Button Classes="tile" Margin="0,0,0,6" Padding="10,8" Click="OnHomeFolderClick" ToolTip.Tip="{Binding FullPath}">
+                                        <Grid ColumnDefinitions="26,*,Auto">
+                                            <ic:SymbolIcon Symbol="Folder" IconVariant="Filled" FontSize="16" Width="16" Height="16" Foreground="{DynamicResource FolderYellow}"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="13" Margin="6,0,8,0"
+                                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding SubText}" FontSize="11"/>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="placeholder" Text="Folders you visit will start showing up here."
+                                   IsVisible="{Binding !HomeDashboard.HasFavoriteFolders}"/>
+                        </StackPanel>
+
+                        <TextBlock Classes="sectionTitle" Text="Recent searches" Margin="0,20,0,10"
+                                   IsVisible="{Binding HomeDashboard.HasRecentSearches}"/>
+                        <ItemsControl ItemsSource="{Binding HomeDashboard.RecentSearches}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RecentSearchRowViewModel">
+                                    <Grid ColumnDefinitions="Auto,*" Margin="0,0,0,6">
+                                        <ic:SymbolIcon Symbol="Search" FontSize="13" Width="13" Height="13" Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"/>
+                                        <StackPanel Grid.Column="1" Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding Query}" FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Classes="secondary" Text="{Binding SubText}" FontSize="10"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <TextBlock Classes="sectionTitle" Text="File types"/>
+                        <ItemsControl ItemsSource="{Binding HomeDashboard.FileTypes}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FileTypeRowViewModel">
+                                    <StackPanel Margin="0,0,0,10">
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,3">
+                                            <TextBlock Text="{Binding Extension}" FontSize="12"/>
+                                            <TextBlock Grid.Column="1" Classes="secondary" Text="{Binding OpenCount, StringFormat='{}{0:N0}'}" FontSize="11"/>
+                                        </Grid>
+                                        <Border Height="6" Width="180" CornerRadius="3" HorizontalAlignment="Left" Background="{DynamicResource BorderLight}">
+                                            <Border CornerRadius="3" HorizontalAlignment="Left" Width="{Binding BarWidth}"
+                                                    Background="{Binding ColorHex, Converter={x:Static conv:Conv.HexToBrush}}"/>
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="placeholder" Text="Files you open will start showing up here."
+                                   IsVisible="{Binding !HomeDashboard.HasFileTypes}"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Recent videos | Latest music, then Latest documents | Latest folders opened (last 20 of each). -->
+                <Grid ColumnDefinitions="*,20,*" Margin="0,20,0,0">
+                    <StackPanel>
+                        <StackPanel IsVisible="{Binding ShowRecentFiles}">
+                        <TextBlock Classes="sectionTitle" Text="Recent videos"/>
+                        <ItemsControl ItemsSource="{Binding HomeDashboard.RecentVideos}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RecentFileRowViewModel">
+                                    <Button Classes="tile flat" Margin="0,0,0,4" Click="OnHomeRecentFileClick" ToolTip.Tip="{Binding FullPath}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <ic:SymbolIcon Symbol="Video" FontSize="15" Width="15" Height="15" Foreground="{DynamicResource VideoPurple}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12.5" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding SubText}" FontSize="10.5"/>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="placeholder" Text="Videos you open will start showing up here."
+                                   IsVisible="{Binding !HomeDashboard.HasRecentVideos}"/>
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding ShowRecentFiles}">
+                        <TextBlock Classes="sectionTitle" Text="Latest documents" Margin="0,20,0,10"/>
+                        <ItemsControl ItemsSource="{Binding HomeDashboard.RecentDocuments}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RecentFileRowViewModel">
+                                    <Button Classes="tile flat" Margin="0,0,0,4" Click="OnHomeRecentFileClick" ToolTip.Tip="{Binding FullPath}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <ic:SymbolIcon Symbol="Document" FontSize="15" Width="15" Height="15" Foreground="{DynamicResource DocBlue}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12.5" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding SubText}" FontSize="10.5"/>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="placeholder" Text="Documents you open will start showing up here."
+                                   IsVisible="{Binding !HomeDashboard.HasRecentDocuments}"/>
+                        </StackPanel>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="2">
+                        <StackPanel IsVisible="{Binding ShowRecentFiles}">
+                        <TextBlock Classes="sectionTitle" Text="Latest music"/>
+                        <ItemsControl ItemsSource="{Binding HomeDashboard.RecentMusic}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:RecentFileRowViewModel">
+                                    <Button Classes="tile flat" Margin="0,0,0,4" Click="OnHomeRecentFileClick" ToolTip.Tip="{Binding FullPath}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <ic:SymbolIcon Symbol="MusicNote2" FontSize="15" Width="15" Height="15" Foreground="{DynamicResource MusicPink}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding Name}" FontSize="12.5" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding SubText}" FontSize="10.5"/>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="placeholder" Text="Music you open will start showing up here."
+                                   IsVisible="{Binding !HomeDashboard.HasRecentMusic}"/>
+                        </StackPanel>
+
+                        <StackPanel IsVisible="{Binding ShowFrequentFolders}">
+                        <TextBlock Classes="sectionTitle" Text="Latest folders opened" Margin="0,20,0,10"/>
+                        <ItemsControl ItemsSource="{Binding HomeDashboard.RecentFolders}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:FavoriteFolderRowViewModel">
+                                    <Button Classes="tile flat" Margin="0,0,0,4" Click="OnHomeFolderClick" ToolTip.Tip="{Binding FullPath}">
+                                        <Grid ColumnDefinitions="Auto,*,Auto">
+                                            <ic:SymbolIcon Symbol="Folder" IconVariant="Filled" FontSize="15" Width="15" Height="15" Foreground="{DynamicResource FolderYellow}" VerticalAlignment="Center"/>
+                                            <TextBlock Grid.Column="1" Text="{Binding DisplayName}" FontSize="12.5" Margin="8,0" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                            <TextBlock Grid.Column="2" Classes="secondary" Text="{Binding SubText}" FontSize="10.5"/>
+                                        </Grid>
+                                    </Button>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock Classes="placeholder" Text="Folders you open will start showing up here."
+                                   IsVisible="{Binding !HomeDashboard.HasRecentFolders}"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Grid>
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- ===================== ERROR / EMPTY ===================== -->
+        <TextBlock x:Name="StateMessage" IsVisible="False" IsHitTestVisible="False"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"
+                   Margin="24" MaxWidth="560" FontSize="13" Foreground="{DynamicResource TextSecondary}"/>
+
+        <!-- Rubber-band rectangle, positioned from code-behind in this canvas's coordinates during a drag. -->
+        <Canvas x:Name="BandLayer" IsHitTestVisible="False" ClipToBounds="True">
+            <Border x:Name="SelectionBand" IsVisible="False" Background="#334A9EFF" BorderBrush="#994A9EFF" BorderThickness="1"/>
+        </Canvas>
+    </Grid>
+</UserControl>

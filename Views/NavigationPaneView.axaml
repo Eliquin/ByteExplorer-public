@@ -1,0 +1,163 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The left pane's drive/volume/folder tree. DataContext: NavigationViewModel (set by the hosting window).
+
+    Rendered as a virtualizing list of the tree's visible rows (NavigationViewModel.VisibleRows), each indented by its
+    depth, instead of an Avalonia TreeView: TreeView virtualizes only its top level, so expanding a folder with tens of
+    thousands of subfolders created every row. Here only the rows on screen exist, whatever the tree's size. Behaviour is
+    the tree's: chevrons expand and collapse (starting NavigationNodeViewModel's lazy load), Left/Right collapse/expand
+    or move to the parent/first child, a click navigates (a keyboard selection after a short rest), Enter re-opens,
+    middle click opens in the other pane, right-click opens the tree and file menu without navigating, typing finds a
+    folder, rows accept drops (a drag resting on a closed folder opens it). The tree follows the active pane's folder.
+    The behaviour is in the code-behind.
+
+    Rows are plain borders, not the window's Border.navRow class, so the window's own sidebar drop handler (which keys on
+    navRow) never claims a tree row.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:vm="using:ByteExplorer.ViewModels"
+             xmlns:ctl="using:ByteExplorer.Controls"
+             xmlns:conv="using:ByteExplorer.Infrastructure.Converters"
+             x:Class="ByteExplorer.Views.NavigationPaneView"
+             x:DataType="vm:NavigationViewModel">
+
+    <UserControl.Styles>
+        <!-- Chevron expander: rotates from right to down when expanded; pressing (not releasing) toggles. -->
+        <Style Selector="ToggleButton.expander">
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="ClickMode" Value="Press"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="Transparent">
+                        <ic:SymbolIcon Name="arrow" Symbol="ChevronRight" FontSize="10" Width="10" Height="10"
+                                       Foreground="{DynamicResource TextSecondary}"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center">
+                            <ic:SymbolIcon.Transitions>
+                                <Transitions>
+                                    <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.1"/>
+                                </Transitions>
+                            </ic:SymbolIcon.Transitions>
+                        </ic:SymbolIcon>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ToggleButton.expander:checked /template/ ic|SymbolIcon#arrow">
+            <Setter Property="RenderTransform" Value="rotate(90deg)"/>
+        </Style>
+
+        <!-- Flat rows: no ListBoxItem chrome; the row border draws hover, selection, menu target and drop target. -->
+        <Style Selector="ListBox#Rows ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="DragDrop.AllowDrop" Value="True"/>
+            <Setter Property="FocusAdorner" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Name="row" Height="30" CornerRadius="4" Margin="6,0" Background="Transparent"
+                            BorderBrush="Transparent" BorderThickness="1">
+                        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Content}"
+                                          ContentTemplate="{TemplateBinding ContentTemplate}"
+                                          VerticalAlignment="Stretch" HorizontalAlignment="Stretch"/>
+                    </Border>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="ListBox#Rows ListBoxItem:pointerover /template/ Border#row">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="ListBox#Rows ListBoxItem.contextTarget /template/ Border#row">
+            <Setter Property="Background" Value="{DynamicResource PressedBg}"/>
+        </Style>
+        <Style Selector="ListBox#Rows ListBoxItem:selected /template/ Border#row">
+            <Setter Property="Background" Value="{DynamicResource NavSelectedBg}"/>
+        </Style>
+        <Style Selector="ListBox#Rows ListBoxItem:focus-visible /template/ Border#row">
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+        <Style Selector="ListBox#Rows ListBoxItem.dropTarget /template/ Border#row">
+            <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+
+        <!-- Hidden and system folders, as the file list shows them: translucent; name in the system-item color. -->
+        <Style Selector="TextBlock.nodeName">
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="Grid.row.hiddenItem">
+            <Setter Property="Opacity" Value="0.55"/>
+        </Style>
+        <Style Selector="Grid.row.systemItem TextBlock.nodeName">
+            <Setter Property="Foreground" Value="{DynamicResource SystemItemText}"/>
+        </Style>
+        <Style Selector="Grid.row.unreachable">
+            <Setter Property="Opacity" Value="0.55"/>
+        </Style>
+        <Style Selector="Grid.row.placeholder TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource TextMuted}"/>
+            <Setter Property="FontStyle" Value="Italic"/>
+        </Style>
+    </UserControl.Styles>
+
+    <ListBox x:Name="Rows"
+             ItemsSource="{Binding VisibleRows}"
+             SelectionMode="Single"
+             IsTextSearchEnabled="False"
+             Background="Transparent"
+             BorderThickness="0"
+             Padding="0"
+             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+             ScrollViewer.VerticalScrollBarVisibility="Auto">
+        <ListBox.ItemsPanel>
+            <ItemsPanelTemplate>
+                <VirtualizingStackPanel/>
+            </ItemsPanelTemplate>
+        </ListBox.ItemsPanel>
+        <ListBox.ItemTemplate>
+            <DataTemplate x:DataType="vm:NavigationTreeRow">
+                <Grid Classes="row" ColumnDefinitions="16,Auto,*,Auto" Margin="{Binding Indent}" Background="Transparent"
+                      Classes.unreachable="{Binding Node.IsUnreachable}"
+                      Classes.hiddenItem="{Binding Node.IsHidden}" Classes.systemItem="{Binding Node.IsSystem}"
+                      Classes.placeholder="{Binding Node.NodeType, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Placeholder}"
+                      ToolTip.Tip="{Binding Node.StatusTooltip}">
+                    <ToggleButton Grid.Column="0" Classes="expander" Margin="4,0,0,0"
+                                  IsVisible="{Binding HasChildren}"
+                                  IsChecked="{Binding Node.IsExpanded, Mode=TwoWay}"/>
+                    <!-- Real folders get the two-tone folder icon; This PC and volumes keep their device symbol. -->
+                    <!-- Real folders always get the app's two-tone folder icon (Windows icons are for files and drives). -->
+                    <ContentControl Grid.Column="1" Template="{StaticResource FolderIcon}" Tag="{DynamicResource FolderYellow}"
+                                    Margin="8,0,8,0" VerticalAlignment="Center"
+                                    IsVisible="{Binding Node.NodeType, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Folder}"/>
+                    <!-- This PC and volumes: their device symbol, or with "Show Windows icons" the drive's Windows icon
+                         (the symbol until it arrives). -->
+                    <Panel Grid.Column="1" IsVisible="{Binding Node.NodeType, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=!Folder|Placeholder}">
+                        <ic:SymbolIcon Symbol="{Binding Node.IconGlyph}" FontSize="16" Width="16" Height="16" Margin="8,0,8,0"
+                                       Foreground="{DynamicResource IconGray}" VerticalAlignment="Center"
+                                       IsVisible="{Binding !$parent[Window].((vm:MainViewModel)DataContext).ShowSystemIcons}"/>
+                        <ctl:ItemIconView Width="16" Height="16" Margin="8,0,8,0" VerticalAlignment="Center"
+                                          Path="{Binding Node.FullPath}" IsDirectory="True" IsSystem="{Binding Node.IsSystem}"
+                                          Glyph="{Binding Node.IconGlyph}" GlyphBrush="{DynamicResource IconGray}" ShowSystemIcons="True"
+                                          IsVisible="{Binding $parent[Window].((vm:MainViewModel)DataContext).ShowSystemIcons}"/>
+                    </Panel>
+                    <TextBlock Grid.Column="2" Classes="nodeName" Text="{Binding Node.Name}" FontSize="13"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                    <!-- Network-not-responding indicator: informational only, the row stays clickable and expandable. -->
+                    <ic:SymbolIcon Grid.Column="3" Symbol="ErrorCircle" FontSize="12" Width="12" Height="12" Margin="6,0,6,0"
+                                   Foreground="{DynamicResource UnreachableRed}" VerticalAlignment="Center"
+                                   IsVisible="{Binding Node.IsUnreachable}"/>
+                </Grid>
+            </DataTemplate>
+        </ListBox.ItemTemplate>
+    </ListBox>
+</UserControl>

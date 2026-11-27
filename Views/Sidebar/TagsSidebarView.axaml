@@ -1,0 +1,71 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The sidebar's Tags section: every tag as a tree with its color and item count. Click a tag to see its items (a tag:
+    search, sub-tags included); the arrow folds its sub-tags; right-click for New sub-tag, Rename, Color, Delete and the
+    tag manager; drop files or folders on a tag to give it to them. DataContext: TagsSidebarViewModel. Two looks, as Quick
+    access: Modern and Nemo (Variant).
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:side="using:ByteExplorer.ViewModels.Sidebar"
+             xmlns:sideviews="using:ByteExplorer.Views.Sidebar"
+             x:Class="ByteExplorer.Views.Sidebar.TagsSidebarView"
+             x:DataType="side:TagsSidebarViewModel"
+             DragDrop.AllowDrop="True">
+    <UserControl.Styles>
+        <Style Selector="Border.tagRow.dropTarget">
+            <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+        </Style>
+        <Style Selector="Button.tagExpander">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="Width" Value="16"/>
+            <Setter Property="Height" Value="16"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel>
+        <ItemsControl x:Name="TagList" ItemsSource="{Binding Rows}">
+            <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="side:TagRowViewModel">
+                    <Border Classes="navRow tagRow" Classes.active="{Binding IsActive}" Classes.nemo="{Binding $parent[sideviews:TagsSidebarView].IsNemo}" Tag="{Binding}" ToolTip.Tip="{Binding ToolTip}"
+                            AutomationProperties.Name="{Binding FullName}" DragDrop.AllowDrop="True">
+                        <Grid x:Name="RowGrid" Margin="{Binding $parent[sideviews:TagsSidebarView].RowMargin}" ColumnDefinitions="Auto,16,Auto,*,Auto">
+                            <Border Grid.Column="0" Width="{Binding Indent.Left}"/>
+                            <Button Grid.Column="1" Classes="tagExpander" IsVisible="{Binding HasChildren}" Tag="{Binding}" Click="OnExpanderClick"
+                                    ToolTip.Tip="Show or hide the sub-tags">
+                                <Panel>
+                                    <ic:SymbolIcon Symbol="ChevronDown" FontSize="10" Foreground="{DynamicResource IconGray}" IsVisible="{Binding IsExpanded}"/>
+                                    <ic:SymbolIcon Symbol="ChevronRight" FontSize="10" Foreground="{DynamicResource IconGray}" IsVisible="{Binding !IsExpanded}"/>
+                                </Panel>
+                            </Button>
+                            <Ellipse Grid.Column="2" Width="11" Height="11" Fill="{Binding Brush}" VerticalAlignment="Center" Margin="3,0,10,0"/>
+                            <TextBlock Grid.Column="3" Text="{Binding Name}" FontSize="13" Foreground="{DynamicResource TextPrimary}"
+                                       VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                            <TextBlock Grid.Column="4" Text="{Binding CountText}" FontSize="11" Foreground="{DynamicResource TextMuted}"
+                                       VerticalAlignment="Center" Margin="6,0,0,0"/>
+                        </Grid>
+                    </Border>
+                </DataTemplate>
+            </ItemsControl.ItemTemplate>
+        </ItemsControl>
+
+        <!-- No tags yet: say how to make one. -->
+        <Border IsVisible="{Binding !HasTags}" Margin="12,2,12,6" Padding="12,10" CornerRadius="6"
+                BorderBrush="{DynamicResource BorderLight}" BorderThickness="1">
+            <StackPanel Spacing="4">
+                <TextBlock Text="No tags yet" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
+                <TextBlock Text="Right-click files or folders and choose Tags, or press + to create one. Tags appear here as you use them."
+                           FontSize="11.5" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+            </StackPanel>
+        </Border>
+    </StackPanel>
+</UserControl>

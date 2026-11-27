@@ -1,0 +1,131 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The trash / Recycle Bin surface of the file list pane (FileListView shows it when FileListViewModel.IsTrashView).
+    DataContext: the pane's FileListViewModel (FileListViewModel.Trash.cs).
+
+    Top: the title and the Empty button. Then sortable column headers (click to sort, again to reverse) and the items: a
+    virtualizing list with the type icon, the name, the folder it was deleted from (trimmed from the left so its end stays
+    readable), the deletion date, the size and the type. Behaviour is in the code-behind: the item and background menus
+    (Restore, Delete permanently, Empty, Select all) and the keys. Inherits FileListView's styles (Button.outline,
+    TextBlock.secondary).
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:vm="using:ByteExplorer.ViewModels"
+             x:Class="ByteExplorer.Views.TrashView"
+             x:DataType="vm:FileListViewModel"
+             Background="{DynamicResource ContentBrush}">
+
+    <UserControl.Styles>
+        <Style Selector="Button.trashHeader">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+        <Style Selector="Button.trashHeader:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="ListBox#TrashList ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="FocusAdorner" Value="{x:Null}"/>
+        </Style>
+        <Style Selector="ListBox#TrashList ListBoxItem:focus-visible">
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.cell">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Margin" Value="10,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel>
+        <Grid DockPanel.Dock="Top" ColumnDefinitions="Auto,*,Auto" Margin="16,12,16,10">
+            <ic:SymbolIcon Symbol="Delete" FontSize="22" Width="22" Height="22" VerticalAlignment="Center"
+                           Foreground="{DynamicResource IconGray}"/>
+            <StackPanel Grid.Column="1" Margin="10,0,0,0" VerticalAlignment="Center">
+                <TextBlock x:Name="TitleText" Text="{Binding TrashTitle}" FontSize="20" FontWeight="Bold"/>
+                <TextBlock x:Name="HintText" Classes="secondary" FontSize="11" Margin="0,2,0,0" TextWrapping="Wrap"/>
+            </StackPanel>
+            <Button Grid.Column="2" x:Name="EmptyButton" Classes="outline" VerticalAlignment="Center"
+                    Content="{Binding EmptyTrashText}" Command="{Binding EmptyTrashCommand}"/>
+        </Grid>
+
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,1">
+            <Grid ColumnDefinitions="2.2*,3*,150,96,120">
+                <Button Grid.Column="0" Classes="trashHeader" x:Name="NameHeader" Click="OnHeaderClick" Tag="Name">
+                    <TextBlock x:Name="NameHeaderText" Text="Name"/>
+                </Button>
+                <Button Grid.Column="1" Classes="trashHeader" x:Name="LocationHeader" Click="OnHeaderClick" Tag="OriginalLocation">
+                    <TextBlock x:Name="LocationHeaderText" Text="Original location"/>
+                </Button>
+                <Button Grid.Column="2" Classes="trashHeader" x:Name="DeletedHeader" Click="OnHeaderClick" Tag="DateDeleted">
+                    <TextBlock x:Name="DeletedHeaderText" Text="Date deleted"/>
+                </Button>
+                <Button Grid.Column="3" Classes="trashHeader" x:Name="SizeHeader" Click="OnHeaderClick" Tag="Size" HorizontalContentAlignment="Right">
+                    <TextBlock x:Name="SizeHeaderText" Text="Size"/>
+                </Button>
+                <Button Grid.Column="4" Classes="trashHeader" x:Name="TypeHeader" Click="OnHeaderClick" Tag="Type">
+                    <TextBlock x:Name="TypeHeaderText" Text="Type"/>
+                </Button>
+            </Grid>
+        </Border>
+
+        <Panel>
+            <ListBox x:Name="TrashList"
+                     ItemsSource="{Binding TrashItems}"
+                     SelectionMode="Multiple"
+                     Background="Transparent" BorderThickness="0" Padding="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:TrashItemViewModel">
+                        <Grid ColumnDefinitions="2.2*,3*,150,96,120" Background="Transparent"
+                              ToolTip.Tip="{Binding ToolTip}" ToolTip.ShowDelay="700">
+                            <StackPanel Orientation="Horizontal" Margin="10,0,0,0">
+                                <ic:SymbolIcon Symbol="{Binding IconGlyph}" FontSize="16" Width="16" Height="16" VerticalAlignment="Center"
+                                               Foreground="{Binding IconColorBrush}"/>
+                                <TextBlock Text="{Binding Name}" FontSize="13" Margin="8,0,10,0" VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis" Foreground="{DynamicResource TextPrimary}"/>
+                            </StackPanel>
+                            <TextBlock Grid.Column="1" Classes="cell" Text="{Binding OriginalLocation}" TextTrimming="PrefixCharacterEllipsis"/>
+                            <TextBlock Grid.Column="2" Classes="cell" Text="{Binding DeletedDisplay}"/>
+                            <TextBlock Grid.Column="3" Classes="cell" Text="{Binding SizeDisplay}" HorizontalAlignment="Right"/>
+                            <TextBlock Grid.Column="4" Classes="cell" Text="{Binding TypeDisplay}"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsLoading}" VerticalAlignment="Top" Height="2" MinHeight="2"
+                         Background="Transparent" Foreground="{DynamicResource SelectedAccent}"/>
+
+            <StackPanel x:Name="EmptyState" IsVisible="False" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" IsHitTestVisible="False">
+                <ic:SymbolIcon Symbol="Delete" FontSize="40" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center"/>
+                <TextBlock x:Name="EmptyText" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" HorizontalAlignment="Center"/>
+            </StackPanel>
+        </Panel>
+    </DockPanel>
+</UserControl>

@@ -1,0 +1,211 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    Global search results, over the file list while a search is shown. DataContext: SearchViewModel.
+
+    Top: the status ("1,234 results · 12 ms"), the scope toggle (everywhere / the active pane's folder), the syntax help and
+    the close button; below it the quick filters. Then sortable column headers and the results: a virtualizing list over
+    every match (rows are built as they scroll in), each with its type icon, the name with the matching parts highlighted,
+    the folder (trimmed from the left, so its end stays readable), size, date and type. Behaviour is in the code-behind:
+    open, open location, the file menu, dragging out, keyboard.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:omni="using:ByteExplorer.Views.Omnibar"
+             xmlns:search="using:ByteExplorer.ViewModels.Search"
+             xmlns:search_views="using:ByteExplorer.Views.Search"
+             x:Class="ByteExplorer.Views.Search.SearchResultsView"
+             x:DataType="search:SearchViewModel"
+             Background="{DynamicResource ContentBrush}">
+
+    <UserControl.Styles>
+        <Style Selector="Button.chip">
+            <Setter Property="Padding" Value="11,3"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="CornerRadius" Value="12"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="Button.chip:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+        <Style Selector="Button.chip.selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+        <Style Selector="Button.chip.selected">
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
+
+        <Style Selector="Button.bar">
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Button.bar:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+
+        <Style Selector="Button.header">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="CornerRadius" Value="0"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="HorizontalAlignment" Value="Stretch"/>
+            <Setter Property="HorizontalContentAlignment" Value="Left"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+        </Style>
+        <Style Selector="Button.header:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource HoverBg}"/>
+        </Style>
+
+        <Style Selector="ListBox#ResultsList ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="MinHeight" Value="0"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="FocusAdorner" Value="{x:Null}"/>
+        </Style>
+        <Style Selector="ListBox#ResultsList ListBoxItem:focus-visible">
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+    </UserControl.Styles>
+
+    <DockPanel>
+        <!-- Status, scope, help, close; then the quick filters. -->
+        <Border DockPanel.Dock="Top" Padding="12,6,8,8" Background="{DynamicResource TitleBarBrush}"
+                BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1">
+            <StackPanel Spacing="7">
+                <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto">
+                    <ic:SymbolIcon Symbol="Search" FontSize="15" Foreground="{DynamicResource SelectedAccent}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" x:Name="StatusLine" Text="{Binding StatusText}" Margin="8,0,8,0" FontSize="13"
+                               Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                    <Button Grid.Column="2" Classes="bar" x:Name="ScopeButton" Command="{Binding ToggleScopeCommand}"
+                            ToolTip.Tip="Search everywhere, or only in the folder the active pane shows">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <ic:SymbolIcon Symbol="FolderOpen" FontSize="14"/>
+                            <TextBlock Text="{Binding ScopeLabel}" FontSize="12" VerticalAlignment="Center"/>
+                        </StackPanel>
+                    </Button>
+                    <Button Grid.Column="3" Classes="bar" x:Name="HelpButton" ToolTip.Tip="Search syntax">
+                        <ic:SymbolIcon Symbol="Info" FontSize="15"/>
+                        <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight">
+                                <StackPanel Width="360" Spacing="5" Margin="4">
+                                    <TextBlock Text="Search syntax" FontWeight="SemiBold" FontSize="13"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                               Text="Words: all must appear in the name, any order (tax 2024)."/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                               Text="&quot;exact phrase&quot;   -leaveout   *.pdf   report-??.docx"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                               Text="photos/beach: beach inside a folder named photos"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                               Text="ext:pdf;docx   kind:image|video|audio|document|archive|code|folder"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                               Text="size:>10mb   size:1mb..5mb   size:large"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                               Text="modified:today|week|month|year   modified:2024   dm:>2024-05-01"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                               Text="in:C:\Projects (inside a folder)   in:backup (inside a folder whose name contains it)"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextSecondary}"
+                                               Text="content:invoice   content:&quot;exact phrase&quot; (the text inside files; Settings › Search › File contents)"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="{DynamicResource TextMuted}" Margin="0,4,0,0"
+                                               Text="Enter opens, Ctrl+Enter opens the file location, Esc goes back to the search box. Click a column to sort."/>
+                                </StackPanel>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
+                    <Button Grid.Column="4" Classes="bar" Command="{Binding ClearCommand}" ToolTip.Tip="Close search (Esc)">
+                        <ic:SymbolIcon Symbol="Dismiss" FontSize="14"/>
+                    </Button>
+                </Grid>
+
+                <ItemsControl x:Name="FilterChips" ItemsSource="{Binding Filters}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="search:SearchFilterChip">
+                            <Button Classes="chip" Classes.selected="{Binding IsSelected}" Content="{Binding Label}" Margin="0,0,6,0"
+                                    Command="{Binding $parent[ItemsControl].((search:SearchViewModel)DataContext).SelectFilterCommand}"
+                                    CommandParameter="{Binding}"/>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+        </Border>
+
+        <!-- Column headers: click to sort, again to reverse. -->
+        <Border DockPanel.Dock="Top" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1">
+            <Grid x:Name="HeaderGrid" ColumnDefinitions="2.2*,3*,96,150,120">
+                <Button Grid.Column="0" Classes="header" Command="{Binding SortCommand}" CommandParameter="Name" x:Name="NameHeader">
+                    <TextBlock x:Name="NameHeaderText" Text="Name"/>
+                </Button>
+                <Button Grid.Column="1" Classes="header" Command="{Binding SortCommand}" CommandParameter="Folder" x:Name="FolderHeader">
+                    <TextBlock x:Name="FolderHeaderText" Text="Folder"/>
+                </Button>
+                <Button Grid.Column="2" Classes="header" Command="{Binding SortCommand}" CommandParameter="Size" HorizontalContentAlignment="Right">
+                    <TextBlock x:Name="SizeHeaderText" Text="Size"/>
+                </Button>
+                <Button Grid.Column="3" Classes="header" Command="{Binding SortCommand}" CommandParameter="Modified">
+                    <TextBlock x:Name="ModifiedHeaderText" Text="Date modified"/>
+                </Button>
+                <Button Grid.Column="4" Classes="header" Command="{Binding SortCommand}" CommandParameter="Type">
+                    <TextBlock x:Name="TypeHeaderText" Text="Type"/>
+                </Button>
+            </Grid>
+        </Border>
+
+        <Panel>
+            <ListBox x:Name="ResultsList"
+                     ItemsSource="{Binding Results}"
+                     SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                     SelectionMode="Multiple"
+                     Background="Transparent" BorderThickness="0" Padding="0"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemTemplate>
+                    <!-- One control per row, drawing cached text (see SearchResultRowView: a template of TextBlocks was too
+                         slow to rebuild when dragging the scroll bar through many thousands of results). -->
+                    <DataTemplate x:DataType="search:SearchResultRow">
+                        <search_views:SearchResultRowView ToolTip.Tip="{Binding ToolTip}" ToolTip.ShowDelay="700"/>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Searching: a thin bar along the top. -->
+            <ProgressBar IsIndeterminate="True" IsVisible="{Binding IsRunning}" VerticalAlignment="Top" Height="2" MinHeight="2"
+                         Background="Transparent" Foreground="{DynamicResource SelectedAccent}"/>
+
+            <!-- Nothing found. -->
+            <StackPanel IsVisible="{Binding IsEmptyStateVisible}" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" MaxWidth="420">
+                <ic:SymbolIcon Symbol="Search" FontSize="40" Foreground="{DynamicResource TextMuted}" HorizontalAlignment="Center"/>
+                <TextBlock Text="{Binding EmptyText}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"
+                           HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap"/>
+                <TextBlock FontSize="12" Foreground="{DynamicResource TextSecondary}" TextAlignment="Center" TextWrapping="Wrap"
+                           Text="Check the spelling, use fewer words, choose All in the filters, or search everywhere instead of one folder. Folders left out of the index (settings) are never found."/>
+            </StackPanel>
+        </Panel>
+    </DockPanel>
+</UserControl>

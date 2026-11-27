@@ -1,0 +1,51 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    Full-screen video for the preview pane. A separate, chrome-less window in WindowState.FullScreen on the monitor the main
+    window is on (covering the taskbar/dock, like a media player's own full screen), rather than making the main window
+    itself full screen.
+
+    It hosts the preview pane's own VideoView, moved here for as long as the window is open (see the code-behind for why
+    the same native surface is reused instead of a second VideoView). That surface is a native child window, so nothing
+    can be drawn over the video ("airspace"); the controls therefore live in a bar below it, which hides itself after a few
+    seconds without use and returns when the pointer reaches the bottom edge or a key is pressed. Esc or F11 leaves full
+    screen, Space plays/pauses.
+-->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ic="using:ByteExplorer.Icons"
+        xmlns:views="using:ByteExplorer.Views"
+        x:Class="ByteExplorer.Views.FullScreenMediaWindow"
+        Title="ByteExplorer"
+        SystemDecorations="None"
+        CanResize="False"
+        ShowInTaskbar="False"
+        WindowStartupLocation="Manual"
+        Background="Black"
+        FontFamily="{DynamicResource UiFont}"
+        FontSize="13">
+
+    <Grid RowDefinitions="*,Auto">
+        <Border x:Name="VideoHost" Grid.Row="0" Background="Black"/>
+
+        <!-- Shown while the bar is hidden: the only place below the native video surface that can see the pointer. -->
+        <Border x:Name="HotEdge" Grid.Row="1" Height="6" Background="Black" IsVisible="False"/>
+
+        <Border x:Name="ControlBar" Grid.Row="1" Background="{DynamicResource ContentBrush}"
+                BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0" Padding="24,8,24,10">
+            <Grid ColumnDefinitions="*,Auto">
+                <views:MediaTransportBar x:Name="TransportBar" Grid.Column="0" MaxWidth="900"/>
+                <Button Grid.Column="1" Classes="cmd" Padding="10,6" Margin="16,0,0,0" VerticalAlignment="Center"
+                        ToolTip.Tip="Exit full screen (Esc)" Click="OnExitClick">
+                    <StackPanel Orientation="Horizontal">
+                        <ic:SymbolIcon Symbol="FullScreenMinimize" FontSize="16" VerticalAlignment="Center"/>
+                        <TextBlock Text="Exit full screen" Margin="6,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                </Button>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

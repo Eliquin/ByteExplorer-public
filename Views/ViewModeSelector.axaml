@@ -1,0 +1,53 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The toolbar's View menu. DataContext: the window's MainViewModel; every option sets
+    FileListViewModel.SelectedPreset (the active pane's list), which applies the preset's mode and icon size and persists
+    it. Port of the WPF Popup-based selector as a MenuFlyout: the same ten presets in the same groups, the current one
+    checked, plus the keyboard navigation and light dismiss a real menu brings.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:vm="using:ByteExplorer.ViewModels"
+             xmlns:conv="using:ByteExplorer.Infrastructure.Converters"
+             x:Class="ByteExplorer.Views.ViewModeSelector"
+             x:DataType="vm:MainViewModel">
+    <Button Classes="cmd" Padding="10,6" ToolTip.Tip="View">
+        <StackPanel Orientation="Horizontal">
+            <ic:SymbolIcon Symbol="Grid" FontSize="16" VerticalAlignment="Center"/>
+            <TextBlock Text="View" Margin="6,0,2,0" VerticalAlignment="Center"/>
+            <ic:SymbolIcon Symbol="ChevronDown" FontSize="10" Margin="4,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+        <Button.Flyout>
+            <!-- Opens leftwards: the button sits at the toolbar's right end. -->
+            <MenuFlyout Placement="BottomEdgeAlignedRight">
+                <MenuItem Header="Details" Tag="Details" ToggleType="Radio" GroupName="ViewPreset" Click="OnPresetClick"
+                          IsChecked="{Binding FileListViewModel.SelectedPreset, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Details}"/>
+                <MenuItem Header="List" Tag="List" ToggleType="Radio" GroupName="ViewPreset" Click="OnPresetClick"
+                          IsChecked="{Binding FileListViewModel.SelectedPreset, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=List}"/>
+                <MenuItem Header="Tiles" Tag="Tiles" ToggleType="Radio" GroupName="ViewPreset" Click="OnPresetClick"
+                          IsChecked="{Binding FileListViewModel.SelectedPreset, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Tiles}"/>
+                <Separator/>
+                <MenuItem Header="Small icons" Tag="SmallIcons" ToggleType="Radio" GroupName="ViewPreset" Click="OnPresetClick"
+                          IsChecked="{Binding FileListViewModel.SelectedPreset, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=SmallIcons}"/>
+                <MenuItem Header="Medium icons" Tag="MediumIcons" ToggleType="Radio" GroupName="ViewPreset" Click="OnPresetClick"
+                          IsChecked="{Binding FileListViewModel.SelectedPreset, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=MediumIcons}"/>
+                <MenuItem Header="Large icons" Tag="LargeIcons" ToggleType="Radio" GroupName="ViewPreset" Click="OnPresetClick"
+                          IsChecked="{Binding FileListViewModel.SelectedPreset, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=LargeIcons}"/>
+                <MenuItem Header="Extra large icons" Tag="ExtraLargeIcons" ToggleType="Radio" GroupName="ViewPreset" Click="OnPresetClick"
+                          IsChecked="{Binding FileListViewModel.SelectedPreset, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=ExtraLargeIcons}"/>
+                <Separator/>
+                <MenuItem Header="Timeline" Tag="Timeline" ToggleType="Radio" GroupName="ViewPreset" Click="OnPresetClick"
+                          IsChecked="{Binding FileListViewModel.SelectedPreset, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Timeline}"/>
+                <MenuItem Header="Columns" Tag="Columns" ToggleType="Radio" GroupName="ViewPreset" Click="OnPresetClick"
+                          IsChecked="{Binding FileListViewModel.SelectedPreset, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Columns}"/>
+                <MenuItem Header="Nexus" Tag="Nexus" ToggleType="Radio" GroupName="ViewPreset" Click="OnPresetClick"
+                          IsChecked="{Binding FileListViewModel.SelectedPreset, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Nexus}"/>
+            </MenuFlyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>

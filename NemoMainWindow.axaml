@@ -1,0 +1,424 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The Nemo window layout, after the Linux Nemo file manager: a sidebar the full height of the window (places, pinned
+    folders and drives with their capacity), and one title bar holding navigation, the address, search, the tools menu
+    and the caption buttons; then the file list(s) with the details panel, and the status bar. A port of the WPF
+    NemoMainWindow.xaml with the same rows and bindings, on the same MainViewModel; the code-behind is MainWindowBase,
+    shared with the Modern layout. Differences from the WPF file, all deliberate:
+      * Colors come from the shared palette (Themes/Palette.axaml), so Nemo follows the Light/Dark/System theme. Its light
+        grays are the palette's Nemo* keys (the WPF window's values); the WPF window had them fixed, with white fields
+        hardcoded, and could not be dark.
+      * "Computer" opens This PC (devices and recent files) and is highlighted there; "Recent" opens the Home dashboard
+        (recent and frequent folders). In the WPF build both rows opened Home.
+      * "Home" opens the user's home folder; the WPF row of that name opened the Desktop.
+      * The inert "Network" row (a disabled placeholder) became a working Network section: saved shared folders, + to
+        add one (MainViewModel.NetworkLocations), below the drives (Quick access, shared with the Modern layout;
+        the trash is one of its pins, so it can be moved or unpinned like the others).
+      * Drive capacity bars are proportional to the row's width; the WPF bar was UsedPercent pixels wide (at most 100
+        pixels, whatever the sidebar's width).
+      * Rows accept dropped files (copy/move into the folder) and have a right-click menu, as in the Modern layout.
+      * Split view, the theme and the zoom are in the tools menu; the sidebar can be resized with a splitter.
+      * Window chrome per OS as in the Modern layout (MainWindowBase.ConfigureChrome).
+-->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:ic="using:ByteExplorer.Icons"
+        xmlns:views="using:ByteExplorer.Views"
+        xmlns:searchv="using:ByteExplorer.Views.Search"
+        xmlns:omni="using:ByteExplorer.Views.Omnibar"
+        xmlns:side="using:ByteExplorer.Views.Sidebar"
+        xmlns:tabs="using:ByteExplorer.Views.Tabs"
+        xmlns:vm="using:ByteExplorer.ViewModels"
+        xmlns:infra="using:ByteExplorer.Infrastructure"
+        mc:Ignorable="d"
+        x:Class="ByteExplorer.NemoMainWindow"
+        x:DataType="vm:MainViewModel"
+        Title="{Binding WindowTitle}"
+        Icon="avares://ByteExplorer/Assets/Icon/ByteExplorer.ico"
+        Width="1300" Height="800" MinWidth="640" MinHeight="360"
+        WindowStartupLocation="CenterScreen"
+        Background="{DynamicResource ContentBrush}"
+        FontFamily="{DynamicResource UiFont}"
+        FontSize="13">
+
+    <Window.Styles>
+        <!-- Sidebar rows: rounded, taller than the Modern ones, auto height for the drive rows' two lines. -->
+        <Style Selector="Border.navRow.nemo">
+            <Setter Property="Height" Value="NaN"/>
+            <Setter Property="MinHeight" Value="34"/>
+            <Setter Property="Margin" Value="0,1"/>
+            <Setter Property="Padding" Value="10,0"/>
+            <Setter Property="CornerRadius" Value="7"/>
+        </Style>
+        <Style Selector="Border.navRow.nemo:pointerover">
+            <Setter Property="Background" Value="{DynamicResource NemoHoverBg}"/>
+        </Style>
+        <Style Selector="Border.navRow.nemo.active">
+            <Setter Property="Background" Value="{DynamicResource NemoActiveBg}"/>
+        </Style>
+        <Style Selector="Border.navRow.nemo.dropTarget">
+            <Setter Property="Background" Value="{DynamicResource SelectedBg}"/>
+        </Style>
+        <Style Selector="Border.navRow.nemo.drive">
+            <Setter Property="Padding" Value="10,6"/>
+        </Style>
+        <Style Selector="Border.navRow.nemo ic|SymbolIcon.glyph">
+            <Setter Property="FontSize" Value="17"/>
+            <Setter Property="Foreground" Value="{DynamicResource IconGray}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Border.navRow.nemo TextBlock.label">
+            <Setter Property="FontSize" Value="13"/>
+            <Setter Property="Margin" Value="11,0,0,0"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+        </Style>
+        <Style Selector="Border.nemoDivider">
+            <Setter Property="Height" Value="1"/>
+            <Setter Property="Background" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="Margin" Value="8,9"/>
+        </Style>
+
+        <!-- Title bar buttons: 30×30, rounded. -->
+        <Style Selector="Button.cmd.nemoTitle">
+            <Setter Property="Width" Value="30"/>
+            <Setter Property="Height" Value="30"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+
+        <!-- Buttons on the gray bars hover a step darker than the shared HoverBg, which is meant for white surfaces. -->
+        <Style Selector="Border#TitleBar Button.cmd:pointerover /template/ Border#bd, Border#StatusBar Button.cmd:pointerover /template/ Border#bd">
+            <Setter Property="Background" Value="{DynamicResource NemoHoverBg}"/>
+        </Style>
+        <Style Selector="Border#TitleBar Button.cmd.close:pointerover /template/ Border#bd">
+            <Setter Property="Background" Value="{DynamicResource CloseHoverBg}"/>
+        </Style>
+
+        <!-- Drive capacity: a thin bar in the accent color, red when nearly full (as Explorer's). -->
+        <Style Selector="ProgressBar.capacity">
+            <Setter Property="Height" Value="4"/>
+            <Setter Property="MinHeight" Value="4"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="CornerRadius" Value="2"/>
+            <Setter Property="Minimum" Value="0"/>
+            <Setter Property="Maximum" Value="100"/>
+            <Setter Property="Background" Value="{DynamicResource BorderLight}"/>
+            <Setter Property="Foreground" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+        <Style Selector="ProgressBar.capacity.full">
+            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+        </Style>
+    </Window.Styles>
+
+    <Panel>
+        <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" x:Name="FrameBorder">
+            <Grid x:Name="RootGrid" ColumnDefinitions="220,*">
+
+                <!-- ============ SIDEBAR ============ -->
+                <Border Grid.Column="0" x:Name="Sidebar" Background="{DynamicResource NemoSidebarBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,1,0">
+                    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel x:Name="SidebarSections" Margin="10,10,10,14">
+                            <!-- Also a drag region (MainWindowBase): the sidebar reaches the window's top edge. -->
+                            <TextBlock x:Name="SidebarHeader" Text="This PC" FontWeight="Bold" FontSize="24"
+                                       HorizontalAlignment="Stretch" TextAlignment="Center" Background="Transparent"
+                                       Foreground="{DynamicResource TextPrimary}" Padding="6,4,6,14"/>
+
+                            <!-- Sections, each with the line above it (hidden on the first): their order is a setting (SidebarOrder). -->
+                            <!-- Places. -->
+                            <StackPanel side:SidebarOrder.Key="Places">
+                            <Border Classes="nemoDivider" side:SidebarOrder.IsDivider="True"/>
+                            <Border Classes="navRow nemo" Classes.active="{Binding FileListViewModel.IsThisPcView}"
+                                    PointerReleased="OnThisPcRowPointerReleased" ToolTip.Tip="Devices and recent files">
+                                <StackPanel Orientation="Horizontal">
+                                    <ic:SymbolIcon Classes="glyph" Symbol="Desktop"/>
+                                    <TextBlock Classes="label" Text="Computer" FontWeight="SemiBold"/>
+                                </StackPanel>
+                            </Border>
+                            <Border x:Name="HomeFolderRow" Classes="navRow nemo" DragDrop.AllowDrop="True"
+                                    PointerReleased="OnFolderRowPointerReleased" ToolTip.Tip="{Binding $self.Tag}">
+                                <StackPanel Orientation="Horizontal">
+                                    <ic:SymbolIcon Classes="glyph" Symbol="Home"/>
+                                    <TextBlock Classes="label" Text="Home"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Classes="navRow nemo" Classes.active="{Binding FileListViewModel.IsHomeView}"
+                                    PointerReleased="OnHomeRowPointerReleased" ToolTip.Tip="Recent and frequent folders">
+                                <StackPanel Orientation="Horizontal">
+                                    <ic:SymbolIcon Classes="glyph" Symbol="History"/>
+                                    <TextBlock Classes="label" Text="Recent"/>
+                                </StackPanel>
+                            </Border>
+                            </StackPanel>
+
+                            <!-- Pinned places (MainViewModel.Pins): drag to reorder, drop folders to pin, right-click for more. -->
+                            <StackPanel side:SidebarOrder.Key="QuickAccess">
+                            <Border Classes="nemoDivider" side:SidebarOrder.IsDivider="True"/>
+                            <side:SidebarSection Header="Pinned" SectionKey="QuickAccess" HeaderMargin="6,0,0,2">
+                                <side:SidebarSection.HeaderActions>
+                                    <Button Classes="cmd" Padding="4" Command="{Binding TogglePinCommand}" ToolTip.Tip="Pin the current folder (Ctrl+D)">
+                                        <ic:SymbolIcon Symbol="Add" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                    </Button>
+                                </side:SidebarSection.HeaderActions>
+                                <side:PinnedAreaView DataContext="{Binding Pins}" Variant="Nemo"/>
+                            </side:SidebarSection>
+                            </StackPanel>
+
+                            <!-- Drives: kept current by MainViewModel (DrivesRefreshed), whatever the file list shows. -->
+                            <StackPanel side:SidebarOrder.Key="Drives">
+                            <Border Classes="nemoDivider" side:SidebarOrder.IsDivider="True"/>
+                            <ItemsControl ItemsSource="{Binding FileListViewModel.ThisPcDrives}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:ThisPcDriveItem">
+                                        <Border Classes="navRow nemo drive" Tag="{Binding RootPath}" DragDrop.AllowDrop="{Binding IsReady}"
+                                                ToolTip.Tip="{Binding StatusTooltip}" PointerReleased="OnFolderRowPointerReleased">
+                                            <Grid ColumnDefinitions="Auto,*">
+                                                <ic:SymbolIcon Classes="glyph" Symbol="{Binding Glyph}" VerticalAlignment="Top" Margin="0,1,0,0"/>
+                                                <StackPanel Grid.Column="1" Margin="11,0,2,0">
+                                                    <TextBlock Text="{Binding DisplayName}" FontSize="13" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis"/>
+                                                    <ProgressBar Classes="capacity" Classes.full="{Binding IsNearFull}" Margin="0,4"
+                                                                 Value="{Binding UsedPercent}" IsVisible="{Binding IsReady}"/>
+                                                    <TextBlock Text="{Binding CapacityDisplay}" FontSize="11" Foreground="{DynamicResource TextSecondary}" TextTrimming="CharacterEllipsis"/>
+                                                </StackPanel>
+                                            </Grid>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            </StackPanel>
+
+                            <!-- Tags: every tag, filled as items are tagged; click to see a tag's items, drop files to tag them. -->
+                            <StackPanel side:SidebarOrder.Key="Tags">
+                            <Border Classes="nemoDivider" side:SidebarOrder.IsDivider="True"/>
+                            <side:SidebarSection Header="Tags" SectionKey="Tags" HeaderMargin="6,0,0,2">
+                                <side:SidebarSection.HeaderActions>
+                                    <Button Classes="cmd" Padding="4" Click="OnNewTagClick" ToolTip.Tip="New tag">
+                                        <ic:SymbolIcon Symbol="Add" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                    </Button>
+                                </side:SidebarSection.HeaderActions>
+                                <side:TagsSidebarView x:Name="TagsView" DataContext="{Binding TagSidebar}" Variant="Nemo"/>
+                            </side:SidebarSection>
+                            </StackPanel>
+
+                            <!-- Network: saved shared folders; + adds one. -->
+                            <StackPanel side:SidebarOrder.Key="Network">
+                            <Border Classes="nemoDivider" side:SidebarOrder.IsDivider="True"/>
+                            <side:SidebarSection Header="Network" SectionKey="Network" HeaderMargin="6,0,0,2">
+                                <side:SidebarSection.HeaderActions>
+                                    <Button Classes="cmd" Padding="4" Command="{Binding AddNetworkLocationCommand}" ToolTip.Tip="Add network location">
+                                        <ic:SymbolIcon Symbol="Add" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                    </Button>
+                                </side:SidebarSection.HeaderActions>
+                                <ItemsControl ItemsSource="{Binding NetworkLocations.Items}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate x:DataType="vm:SavedLocation">
+                                            <Border Classes="navRow nemo" Tag="{Binding}" ToolTip.Tip="{Binding Path}" PointerReleased="OnNetworkRowPointerReleased">
+                                                <StackPanel Orientation="Horizontal">
+                                                    <ic:SymbolIcon Classes="glyph" Symbol="GlobeDesktop"/>
+                                                    <TextBlock Classes="label" Text="{Binding Name}"/>
+                                                </StackPanel>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </side:SidebarSection>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+
+                <!-- Splitters lie over the panels' edge lines (alignment picks the columns they resize), so no gap shows. -->
+                <GridSplitter Grid.Column="0" x:Name="SidebarSplitter" Width="5" HorizontalAlignment="Right" Background="Transparent" ResizeDirection="Columns" ZIndex="1"/>
+
+                <!-- ============ MAIN ============ -->
+                <Grid Grid.Column="1" x:Name="MainGrid" RowDefinitions="46,*,Auto">
+
+                    <!-- ===== Title bar ===== -->
+                    <Border Grid.Row="0" x:Name="TitleBar" Background="{DynamicResource NemoTitleBarBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,0,0,1">
+                        <Grid Margin="10,0" ColumnDefinitions="Auto,*,220,Auto">
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center" Spacing="2">
+                                <Button Classes="cmd nemoTitle" Command="{Binding FileListViewModel.NavigateBackCommand}" views:NavigationHistoryMenu.Direction="Back"
+                                    ToolTip.Tip="Back (Alt+Left) — right-click for history">
+                                    <ic:SymbolIcon Symbol="ArrowLeft" FontSize="16"/>
+                                </Button>
+                                <Button Classes="cmd nemoTitle" Command="{Binding FileListViewModel.RefreshCommand}" ToolTip.Tip="Refresh (F5)">
+                                    <ic:SymbolIcon Symbol="ArrowClockwise" FontSize="16" Foreground="{DynamicResource IconGray}"/>
+                                </Button>
+                                <Button Classes="cmd nemoTitle" Command="{Binding FileListViewModel.NavigateForwardCommand}" views:NavigationHistoryMenu.Direction="Forward"
+                                    ToolTip.Tip="Forward (Alt+Right) — right-click for history">
+                                    <ic:SymbolIcon Symbol="ArrowRight" FontSize="16"/>
+                                </Button>
+                                <Button Classes="cmd nemoTitle" Command="{Binding FileListViewModel.NavigateUpCommand}" ToolTip.Tip="Up (Alt+Up)">
+                                    <ic:SymbolIcon Symbol="ArrowUp" FontSize="16"/>
+                                </Button>
+                                <Button x:Name="SplitViewButton" Classes="cmd nemoTitle" Classes.active="{Binding IsSplitViewActive}" Command="{Binding ToggleSplitViewCommand}"
+                                        ToolTip.Tip="Split view (Ctrl+\)">
+                                    <ic:SymbolIcon Symbol="SplitVertical" FontSize="16"/>
+                                </Button>
+                            </StackPanel>
+
+                            <!-- Address: the omnibar (breadcrumbs, typing with suggestions, commands, search). -->
+                            <omni:OmnibarView Grid.Column="1" x:Name="Omnibar" DataContext="{Binding Omnibar}" VerticalAlignment="Center" Margin="8,0"/>
+
+                            <!-- Global search. -->
+                            <Border Grid.Column="2" Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1"
+                                    CornerRadius="6" Height="30" VerticalAlignment="Center">
+                                <Grid ColumnDefinitions="*,Auto,Auto">
+                                    <TextBlock Text="{Binding SearchPlaceholder}" Foreground="{DynamicResource TextMuted}" FontSize="13" Margin="10,0,4,0"
+                                               VerticalAlignment="Center" IsHitTestVisible="False"
+                                               IsVisible="{Binding IsSearchPlaceholderVisible}"/>
+                                    <TextBox x:Name="GlobalSearchBox" Classes="bare"
+                                             Text="{Binding SearchBoxDisplayText, Mode=TwoWay}"
+                                             IsEnabled="{Binding IsSearchEnabled}"
+                                             FontSize="13" Margin="10,0,4,0" VerticalAlignment="Center"
+                                             ToolTip.Tip="{Binding IndexDetailStatus}"
+                                             KeyDown="OnGlobalSearchKeyDown"/>
+                                    <Button Grid.Column="1" Classes="cmd" Padding="4" Margin="0,0,2,0" VerticalAlignment="Center" IsVisible="{Binding IsSearchActive}"
+                                        Command="{Binding Search.ClearCommand}" ToolTip.Tip="Clear search (Esc)">
+                                    <ic:SymbolIcon Symbol="Dismiss" FontSize="12"/>
+                                </Button>
+                                <Border Grid.Column="2" Classes="hover" Width="26" Height="26" Margin="0,0,2,0" CornerRadius="4"
+                                            VerticalAlignment="Center" ToolTip.Tip="{Binding IndexDetailStatus}">
+                                        <Border.ContextMenu>
+                                            <ContextMenu>
+                                                <MenuItem Header="Refresh index" Command="{Binding RefreshIndexCommand}"/>
+                                                <MenuItem Header="Stop indexing" Command="{Binding StopIndexingCommand}"/>
+                                            </ContextMenu>
+                                        </Border.ContextMenu>
+                                        <ic:SymbolIcon Symbol="Search" FontSize="15" Foreground="{Binding IndexIconBrush}"
+                                                       HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    </Border>
+                                </Grid>
+                            </Border>
+
+                            <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="8,0,0,0">
+                                <views:AppMenu x:Name="ToolsMenu" Placement="BottomEdgeAlignedRight"/>
+                                <StackPanel x:Name="CaptionButtons" Orientation="Horizontal" Spacing="2">
+                                    <Border Width="1" Height="18" Background="{DynamicResource BorderLight}" Margin="6,0"/>
+                                    <Button Classes="cmd nemoTitle" Click="OnMinimizeClick" ToolTip.Tip="Minimize">
+                                        <ic:SymbolIcon Symbol="Subtract" FontSize="14"/>
+                                    </Button>
+                                    <Button x:Name="MaximizeButton" Classes="cmd nemoTitle" Click="OnMaximizeRestoreClick" ToolTip.Tip="Maximize">
+                                        <ic:SymbolIcon x:Name="MaximizeIcon" Symbol="Maximize" FontSize="14"/>
+                                    </Button>
+                                    <Button Classes="cmd close nemoTitle" Click="OnCloseClick" ToolTip.Tip="Close">
+                                        <ic:SymbolIcon Symbol="Dismiss" FontSize="14"/>
+                                    </Button>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- ===== Body: file list(s) or search results | details ===== -->
+                    <Grid Grid.Row="1" x:Name="BodyGrid" ColumnDefinitions="*,220">
+                        <Border Grid.Column="0" x:Name="MainViewHost" Background="{DynamicResource ContentBrush}">
+                            <!-- Tabs: the bar docks above the panes (Top) or beside them (Left, Right); MainWindowBase docks it by the
+                                 setting. Each tab owns its panes: the views below show the selected tab's. -->
+                            <DockPanel x:Name="TabbedArea">
+                                <tabs:TabStripView x:Name="TabStrip" DockPanel.Dock="Top" DataContext="{Binding Tabs}"/>
+                                <Panel>
+                                    <Grid x:Name="PaneGrid" ColumnDefinitions="*,0,0" IsVisible="{Binding !IsSearchActive}">
+                                        <views:FileListView Grid.Column="0" x:Name="PrimaryPane" DataContext="{Binding PrimaryFileListViewModel}"/>
+                                        <GridSplitter Grid.Column="1" x:Name="PaneSplitter" Width="3" ResizeDirection="Columns" IsVisible="False"/>
+                                        <!-- Visibility set by MainWindowBase: a binding here would resolve against the pane's own DataContext. -->
+                                        <views:FileListView Grid.Column="2" x:Name="SecondaryPane" DataContext="{Binding SecondaryFileListViewModel}" IsVisible="False"/>
+                                    </Grid>
+
+                                    <!-- Global search results (every match, sortable, filterable; see Views/Search). -->
+                                    <searchv:SearchResultsView x:Name="SearchResultsPanel" DataContext="{Binding Search}" IsVisible="{Binding IsActive}"/>
+
+                                    <!-- File operations: progress, speed, time left, pause and cancel for every running copy, move or delete. -->
+                                    <views:FileOperationsPanel x:Name="OperationsPanel" DataContext="{Binding Operations}" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,16,16" ZIndex="900"/>
+
+                                    <!-- Toast (greeting / goodbye): over the file list, never over the details panel's native video surface. -->
+                                    <Border x:Name="ToastBorder" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,20,20"
+                                            MaxWidth="320" Padding="16,12" CornerRadius="10"
+                                            Background="{DynamicResource MenuBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1"
+                                            Opacity="0" IsHitTestVisible="False" ZIndex="1000"
+                                            BoxShadow="0 4 16 0 #40000000">
+                                        <Border.Transitions>
+                                            <Transitions>
+                                                <DoubleTransition Property="Opacity" Duration="0:0:0.32"/>
+                                                <TransformOperationsTransition Property="RenderTransform" Duration="0:0:0.32" Easing="CubicEaseOut"/>
+                                            </Transitions>
+                                        </Border.Transitions>
+                                        <Border.RenderTransform>
+                                            <TranslateTransform X="340"/>
+                                        </Border.RenderTransform>
+                                        <Grid ColumnDefinitions="Auto,*">
+                                            <ic:SymbolIcon Grid.Column="0" Symbol="Info" FontSize="20" Foreground="{DynamicResource SelectedAccent}" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                            <TextBlock Grid.Column="1" x:Name="ToastText" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextPrimary}" VerticalAlignment="Center"/>
+                                        </Grid>
+                                    </Border>
+                                </Panel>
+                            </DockPanel>
+                        </Border>
+
+                        
+
+                        <!-- ===== Details panel ===== -->
+                        <Border Grid.Column="1" x:Name="DetailsPanel" Background="{DynamicResource NemoSidebarBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1,0,0,0">
+                            <views:DetailsPaneView x:Name="DetailsPane"/>
+                        </Border>
+                        <GridSplitter Grid.Column="1" x:Name="DetailsSplitter" Width="5" HorizontalAlignment="Left" Background="Transparent" ResizeDirection="Columns" ZIndex="1"/>
+                    </Grid>
+
+                    <!-- ===== Status bar ===== -->
+                    <Border Grid.Row="2" x:Name="StatusBar" Background="{DynamicResource NemoStatusBarBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0">
+                        <Grid Margin="10,9,14,9" ColumnDefinitions="Auto,*,Auto">
+                            <Button Classes="cmd" Width="24" Height="24" Padding="0" Margin="0,0,10,0" Click="OnToggleLeftPanelClick" ToolTip.Tip="Show/hide sidebar">
+                                <ic:SymbolIcon Symbol="PanelLeft" FontSize="14" Foreground="{DynamicResource IconGray}"/>
+                            </Button>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="14">
+                                <TextBlock Text="{Binding FileListViewModel.StatusText}" IsVisible="{Binding !FileListViewModel.IsLoading}"
+                                           FontSize="11.5" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                                <TextBlock Text="Loading…" IsVisible="{Binding FileListViewModel.IsLoading}"
+                                           FontSize="11.5" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding FileListViewModel.SelectionSummaryText}" FontSize="11.5" Foreground="{DynamicResource TextSecondary}" VerticalAlignment="Center"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Border Width="150" Height="24" CornerRadius="4" Background="{DynamicResource FieldBrush}" BorderBrush="{DynamicResource BorderLight}" BorderThickness="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <Grid ColumnDefinitions="Auto,*">
+                                        <ic:SymbolIcon Symbol="Filter" FontSize="12" Foreground="{DynamicResource IconGray}" Margin="7,0,4,0" VerticalAlignment="Center"/>
+                                        <TextBox Grid.Column="1" Classes="bare" Text="{Binding FileListViewModel.FilterText, Mode=TwoWay}"
+                                                 FontSize="11.5" Margin="0,0,8,0" VerticalAlignment="Center" Watermark="Filter"
+                                                 ToolTip.Tip="Filter items in this folder"/>
+                                    </Grid>
+                                </Border>
+                                <Slider Classes="modern" Width="90" Margin="0,0,12,0" VerticalAlignment="Center"
+                                        Minimum="32" Maximum="256" SmallChange="4" LargeChange="16"
+                                        ToolTip.Tip="Zoom (works in every view)"
+                                        Value="{Binding FileListViewModel.IconSize, Mode=TwoWay}"/>
+                                <Button Classes="cmd" Padding="4,2" Margin="0,0,4,0" Click="OnCycleViewClick" ToolTip.Tip="Cycle view">
+                                    <ic:SymbolIcon Symbol="Grid" FontSize="15" Foreground="{DynamicResource IconGray}"/>
+                                </Button>
+                                <Button Classes="cmd" Padding="4,2" Click="OnToggleDetailsPanelClick" ToolTip.Tip="Show/hide details pane">
+                                    <ic:SymbolIcon Symbol="PanelRight" FontSize="15" Foreground="{DynamicResource IconGray}"/>
+                                </Button>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <!-- Resize grips, used only where the app draws its own frame (Linux). -->
+        <Panel x:Name="ResizeGrips" IsVisible="False">
+            <Border Tag="North" Height="5" VerticalAlignment="Top" Margin="8,0" Background="Transparent" Cursor="TopSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="South" Height="5" VerticalAlignment="Bottom" Margin="8,0" Background="Transparent" Cursor="BottomSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="West" Width="5" HorizontalAlignment="Left" Margin="0,8" Background="Transparent" Cursor="LeftSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="East" Width="5" HorizontalAlignment="Right" Margin="0,8" Background="Transparent" Cursor="RightSide" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="NorthWest" Width="8" Height="8" HorizontalAlignment="Left" VerticalAlignment="Top" Background="Transparent" Cursor="TopLeftCorner" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="NorthEast" Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Top" Background="Transparent" Cursor="TopRightCorner" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="SouthWest" Width="8" Height="8" HorizontalAlignment="Left" VerticalAlignment="Bottom" Background="Transparent" Cursor="BottomLeftCorner" PointerPressed="OnResizeGripPressed"/>
+            <Border Tag="SouthEast" Width="8" Height="8" HorizontalAlignment="Right" VerticalAlignment="Bottom" Background="Transparent" Cursor="BottomRightCorner" PointerPressed="OnResizeGripPressed"/>
+        </Panel>
+    </Panel>
+</Window>

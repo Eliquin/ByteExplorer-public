@@ -1,0 +1,478 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The settings window, laid out like Windows 11 Settings: the app and a "Find a setting" box above a navigation list on
+    the left, the page's title and its groups of cards on the right. Every card is a template for one kind of setting
+    (switch, choice, number, folder, list, action, information; see ViewModels/Settings/SettingItems.cs), so a new
+    setting is one line in SettingsViewModel, never new XAML. Changes apply and save at once; a change that needs a
+    restart shows the bar under the title with "Restart now".
+-->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ic="using:ByteExplorer.Icons"
+        xmlns:vm="using:ByteExplorer.ViewModels.Settings"
+        x:Class="ByteExplorer.Views.Settings.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="Settings"
+        Width="1060" Height="740" MinWidth="720" MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        Icon="avares://ByteExplorer/Assets/Icon/ByteExplorer.ico"
+        Background="{DynamicResource SettingsWindowBrush}"
+        FontFamily="{DynamicResource UiFont}" FontSize="14">
+    <Window.Styles>
+        <!-- Cards: Windows 11's setting cards, a step lighter than the window, a hairline edge, 4 px apart. -->
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource SettingsCardBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SettingsCardBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="16,12"/>
+            <Setter Property="MinHeight" Value="68"/>
+            <Setter Property="Margin" Value="0,0,0,4"/>
+        </Style>
+        <Style Selector="Border.card:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SettingsCardHoverBrush}"/>
+        </Style>
+        <Style Selector="ic|SymbolIcon.cardIcon">
+            <Setter Property="FontSize" Value="20"/>
+            <Setter Property="Width" Value="20"/>
+            <Setter Property="Height" Value="20"/>
+            <Setter Property="Margin" Value="4,0,20,0"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="StackPanel.cardText">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,16,0"/>
+            <Setter Property="Spacing" Value="1"/>
+        </Style>
+        <Style Selector="TextBlock.cardTitle">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="TextBlock.cardDesc, SelectableTextBlock.cardDesc">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource SettingsDescBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style Selector="TextBlock.restart">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource SelectedAccent}"/>
+            <Setter Property="Margin" Value="0,2,0,0"/>
+        </Style>
+        <Style Selector="TextBlock.groupTitle">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+            <Setter Property="Margin" Value="2,22,0,8"/>
+        </Style>
+        <Style Selector="Button.danger">
+            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+        </Style>
+        <Style Selector="Button.swatch">
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="5"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SettingsCardBorder}"/>
+        </Style>
+        <Style Selector="Button.swatch:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{Binding $parent[Button].Background}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+        </Style>
+        <Style Selector="Button.swatch:pressed /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{Binding $parent[Button].Background}"/>
+        </Style>
+        <Style Selector="TextBox.invalid">
+            <Setter Property="BorderBrush" Value="{DynamicResource DangerBrush}"/>
+        </Style>
+        <Style Selector="Button.settingsButton">
+            <Setter Property="MinWidth" Value="96"/>
+            <Setter Property="Padding" Value="14,5"/>
+            <Setter Property="HorizontalContentAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Navigation list: rounded rows, a quiet fill for the selected page and the accent pill at its left edge. -->
+        <Style Selector="ListBox.settingsNav">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
+        <Style Selector="ListBox.settingsNav ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,1"/>
+            <Setter Property="MinHeight" Value="36"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+        <Style Selector="ListBox.settingsNav ListBoxItem /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="CornerRadius" Value="4"/>
+        </Style>
+        <Style Selector="ListBox.settingsNav ListBoxItem:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SettingsNavHoverBg}"/>
+        </Style>
+        <Style Selector="ListBox.settingsNav ListBoxItem:selected /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource SettingsNavSelectedBg}"/>
+        </Style>
+        <Style Selector="ListBox.settingsNav ListBoxItem Border.pill">
+            <Setter Property="Opacity" Value="0"/>
+        </Style>
+        <Style Selector="ListBox.settingsNav ListBoxItem:selected Border.pill">
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+    </Window.Styles>
+
+    <Window.DataTemplates>
+        <!-- On/off: "On"/"Off" beside the switch, as Windows 11 writes it. -->
+        <DataTemplate DataType="vm:ToggleSetting">
+            <Border Classes="card">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <ic:SymbolIcon Classes="cardIcon" Symbol="{Binding Icon}"/>
+                    <StackPanel Grid.Column="1" Classes="cardText">
+                        <TextBlock Classes="cardTitle" Text="{Binding Title}"/>
+                        <TextBlock Classes="cardDesc" Text="{Binding Description}"/>
+                        <TextBlock Classes="restart" Text="Applies after a restart" IsVisible="{Binding RequiresRestart}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                        <TextBlock Text="{Binding StateText}" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimary}"/>
+                        <ToggleSwitch Classes="compact" OnContent="{x:Null}" OffContent="{x:Null}" IsChecked="{Binding Value}"
+                                      IsEnabled="{Binding IsAvailable}" AutomationProperties.Name="{Binding Title}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="vm:ChoiceSetting">
+            <Border Classes="card">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <ic:SymbolIcon Classes="cardIcon" Symbol="{Binding Icon}"/>
+                    <StackPanel Grid.Column="1" Classes="cardText">
+                        <TextBlock Classes="cardTitle" Text="{Binding Title}"/>
+                        <TextBlock Classes="cardDesc" Text="{Binding Description}"/>
+                        <TextBlock Classes="restart" Text="Applies after a restart" IsVisible="{Binding RequiresRestart}"/>
+                    </StackPanel>
+                    <ComboBox Grid.Column="2" IsEnabled="{Binding IsAvailable}" MinWidth="220" MaxWidth="300" VerticalAlignment="Center"
+                              ItemsSource="{Binding Options}" SelectedItem="{Binding Selected}"
+                              AutomationProperties.Name="{Binding Title}">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SettingOption">
+                                <TextBlock Text="{Binding Label}" TextTrimming="CharacterEllipsis"/>
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="vm:NumberSetting">
+            <Border Classes="card">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <ic:SymbolIcon Classes="cardIcon" Symbol="{Binding Icon}"/>
+                    <StackPanel Grid.Column="1" Classes="cardText">
+                        <TextBlock Classes="cardTitle" Text="{Binding Title}"/>
+                        <TextBlock Classes="cardDesc" Text="{Binding Description}"/>
+                        <TextBlock Classes="restart" Text="Applies after a restart" IsVisible="{Binding RequiresRestart}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                        <NumericUpDown Width="160" Value="{Binding Value}" Minimum="{Binding Minimum}" Maximum="{Binding Maximum}"
+                                       Increment="{Binding Increment}" FormatString="{Binding FormatString}"
+                                       ClipValueToMinMax="True" ToolTip.Tip="{Binding RangeText}"
+                                       AutomationProperties.Name="{Binding Title}"/>
+                        <TextBlock Text="{Binding Unit}" MinWidth="52" VerticalAlignment="Center" FontSize="13"
+                                   Foreground="{DynamicResource SettingsDescBrush}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="vm:FolderSetting">
+            <Border Classes="card">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <ic:SymbolIcon Classes="cardIcon" Symbol="{Binding Icon}"/>
+                    <StackPanel Grid.Column="1" Classes="cardText">
+                        <TextBlock Classes="cardTitle" Text="{Binding Title}"/>
+                        <TextBlock Classes="cardDesc" Text="{Binding Description}"/>
+                        <SelectableTextBlock Classes="cardDesc" Text="{Binding DisplayText}" FontFamily="{DynamicResource UiFont}"
+                                             Foreground="{DynamicResource TextPrimary}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Classes="settingsButton" Content="Browse…" Command="{Binding BrowseCommand}"/>
+                        <Button Classes="settingsButton" Content="{Binding ClearText}" Command="{Binding ClearCommand}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <!-- A list: the header card with its add control, then one row per entry with a remove button. -->
+        <DataTemplate DataType="vm:ListSetting">
+            <Border Classes="card" Padding="0">
+                <StackPanel>
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,12" MinHeight="44">
+                        <ic:SymbolIcon Classes="cardIcon" Symbol="{Binding Icon}"/>
+                        <StackPanel Grid.Column="1" Classes="cardText">
+                            <TextBlock Classes="cardTitle" Text="{Binding Title}"/>
+                            <TextBlock Classes="cardDesc" Text="{Binding Description}"/>
+                        </StackPanel>
+                        <Button Grid.Column="2" Classes="settingsButton" Content="Add folder…" Command="{Binding BrowseCommand}"
+                                IsVisible="{Binding IsFolderList}"/>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding IsNameList}">
+                            <TextBox Width="200" Watermark="Name to leave out" Text="{Binding NewEntry}">
+                                <TextBox.KeyBindings>
+                                    <KeyBinding Gesture="Enter" Command="{Binding AddTypedCommand}"/>
+                                </TextBox.KeyBindings>
+                            </TextBox>
+                            <Button Classes="settingsButton" Content="Add" Command="{Binding AddTypedCommand}"/>
+                        </StackPanel>
+                    </Grid>
+                    <Border BorderBrush="{DynamicResource SettingsCardBorder}" BorderThickness="0,1,0,0">
+                        <StackPanel Margin="60,6,16,8">
+                            <TextBlock Classes="cardDesc" Text="{Binding EmptyText}" IsVisible="{Binding IsEmpty}" Margin="0,6"/>
+                            <ItemsControl ItemsSource="{Binding Entries}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="x:String">
+                                        <Grid ColumnDefinitions="*,Auto" MinHeight="34">
+                                            <TextBlock Text="{Binding}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" FontSize="13"
+                                                       Foreground="{DynamicResource TextPrimary}" ToolTip.Tip="{Binding}"/>
+                                            <Button Grid.Column="1" Classes="cmd" Padding="6" ToolTip.Tip="Remove"
+                                                    Command="{Binding $parent[ItemsControl].((vm:ListSetting)DataContext).RemoveCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <ic:SymbolIcon Symbol="Dismiss" FontSize="12" Foreground="{DynamicResource IconGray}"/>
+                                            </Button>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- A color: preview, hex box and Default on the right, the swatches below. -->
+        <DataTemplate DataType="vm:ColorSetting">
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <Grid ColumnDefinitions="Auto,*,Auto">
+                        <ic:SymbolIcon Classes="cardIcon" Symbol="{Binding Icon}"/>
+                        <StackPanel Grid.Column="1" Classes="cardText">
+                            <TextBlock Classes="cardTitle" Text="{Binding Title}"/>
+                            <TextBlock Classes="cardDesc" Text="{Binding Description}"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                            <Border Width="30" Height="30" CornerRadius="6" BorderThickness="1" BorderBrush="{DynamicResource SettingsCardBorder}"
+                                    Background="{Binding PreviewBrush}" ToolTip.Tip="{Binding StateText}">
+                                <TextBlock Text="A" IsVisible="{Binding IsDefault}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                           FontSize="12" Foreground="{DynamicResource SettingsDescBrush}"/>
+                            </Border>
+                            <TextBox Width="118" Watermark="Default" Text="{Binding EditText}" VerticalContentAlignment="Center"
+                                     Classes.invalid="{Binding !IsEditTextValid}" AutomationProperties.Name="{Binding Title}"
+                                     ToolTip.Tip="#RRGGBB, or empty for the theme's color"/>
+                            <Button Classes="settingsButton" Content="Default" Command="{Binding ClearCommand}"/>
+                        </StackPanel>
+                    </Grid>
+                    <ItemsControl Margin="44,0,0,0" ItemsSource="{x:Static vm:ColorSetting.Swatches}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <WrapPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:ColorSwatch">
+                                <Button Classes="swatch" Margin="0,0,6,6" Background="{Binding Brush}" ToolTip.Tip="{Binding ToolTip}"
+                                        AutomationProperties.Name="{Binding Name}"
+                                        Command="{Binding $parent[ItemsControl].((vm:ColorSetting)DataContext).PickCommand}"
+                                        CommandParameter="{Binding Hex}"/>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- An ordered list: the header card with "Use default order", then one row per entry with up and down buttons. -->
+        <DataTemplate DataType="vm:OrderSetting">
+            <Border Classes="card" Padding="0">
+                <StackPanel>
+                    <Grid ColumnDefinitions="Auto,*,Auto" Margin="16,12" MinHeight="44">
+                        <ic:SymbolIcon Classes="cardIcon" Symbol="{Binding Icon}"/>
+                        <StackPanel Grid.Column="1" Classes="cardText">
+                            <TextBlock Classes="cardTitle" Text="{Binding Title}"/>
+                            <TextBlock Classes="cardDesc" Text="{Binding Description}"/>
+                        </StackPanel>
+                        <Button Grid.Column="2" Classes="settingsButton" Content="Use default order" Command="{Binding ResetCommand}"/>
+                    </Grid>
+                    <Border BorderBrush="{DynamicResource SettingsCardBorder}" BorderThickness="0,1,0,0">
+                        <ItemsControl Margin="60,6,16,8" ItemsSource="{Binding Entries}">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="vm:OrderEntry">
+                                    <Grid ColumnDefinitions="28,*,Auto,Auto" MinHeight="36">
+                                        <TextBlock Text="{Binding Position}" VerticalAlignment="Center" FontSize="12"
+                                                   Foreground="{DynamicResource SettingsDescBrush}"/>
+                                        <TextBlock Grid.Column="1" Text="{Binding Label}" VerticalAlignment="Center" FontSize="13"
+                                                   Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis"/>
+                                        <Button Grid.Column="2" Classes="cmd" Padding="6" ToolTip.Tip="Move up" IsEnabled="{Binding CanMoveUp}"
+                                                AutomationProperties.Name="{Binding Label, StringFormat='Move {0} up'}"
+                                                Command="{Binding $parent[ItemsControl].((vm:OrderSetting)DataContext).MoveUpCommand}"
+                                                CommandParameter="{Binding}">
+                                            <ic:SymbolIcon Symbol="ChevronUp" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                        </Button>
+                                        <Button Grid.Column="3" Classes="cmd" Padding="6" ToolTip.Tip="Move down" IsEnabled="{Binding CanMoveDown}"
+                                                AutomationProperties.Name="{Binding Label, StringFormat='Move {0} down'}"
+                                                Command="{Binding $parent[ItemsControl].((vm:OrderSetting)DataContext).MoveDownCommand}"
+                                                CommandParameter="{Binding}">
+                                            <ic:SymbolIcon Symbol="ChevronDown" FontSize="13" Foreground="{DynamicResource IconGray}"/>
+                                        </Button>
+                                    </Grid>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="vm:ActionSetting">
+            <Border Classes="card">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <ic:SymbolIcon Classes="cardIcon" Symbol="{Binding Icon}"/>
+                    <StackPanel Grid.Column="1" Classes="cardText">
+                        <TextBlock Classes="cardTitle" Text="{Binding Title}"/>
+                        <TextBlock Classes="cardDesc" Text="{Binding Description}"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                        <Button Classes="settingsButton" Content="{Binding SecondaryButtonText}" Command="{Binding SecondaryCommand}"
+                                IsVisible="{Binding HasSecondary}"/>
+                        <Button Classes="settingsButton" Classes.accent="{Binding IsAccent}" Classes.danger="{Binding IsDanger}"
+                                Content="{Binding ButtonText}" Command="{Binding Command}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="vm:InfoSetting">
+            <Border Classes="card">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <ic:SymbolIcon Classes="cardIcon" Symbol="{Binding Icon}"/>
+                    <StackPanel Grid.Column="1" Classes="cardText">
+                        <TextBlock Classes="cardTitle" Text="{Binding Title}"/>
+                        <TextBlock Classes="cardDesc" Text="{Binding Description}"/>
+                        <SelectableTextBlock Classes="cardDesc" Text="{Binding Value}" Foreground="{DynamicResource TextPrimary}" Margin="0,4,0,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="2" Classes="settingsButton" Content="{Binding ButtonText}" Command="{Binding Command}"
+                            IsVisible="{Binding HasButton}"/>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate DataType="vm:AboutSetting">
+            <Border Classes="card" Padding="20,18">
+                <Grid ColumnDefinitions="Auto,*">
+                    <Image Source="avares://ByteExplorer/Assets/Icon/ByteExplorer-64.png" Width="64" Height="64" Margin="0,0,20,0" VerticalAlignment="Center"/>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="3">
+                        <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                        <SelectableTextBlock Text="{Binding Version}" FontSize="13" Foreground="{DynamicResource TextPrimary}"/>
+                        <SelectableTextBlock Classes="cardDesc" Text="{Binding Details}"/>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+        <!-- The note from the author (About page): a heart, the words, the signature and the project's link. -->
+        <DataTemplate DataType="vm:AuthorNoteSetting">
+            <Border Classes="card" Padding="20,18">
+                <Grid ColumnDefinitions="Auto,*">
+                    <ic:SymbolIcon Symbol="Heart" IconVariant="Filled" FontSize="22" Foreground="#FFE0457B" VerticalAlignment="Top" Margin="0,2,16,0"/>
+                    <StackPanel Grid.Column="1" Spacing="8">
+                        <TextBlock Text="{Binding Title}" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                        <SelectableTextBlock Text="{Binding Message}" TextWrapping="Wrap" FontSize="13" LineHeight="20" Foreground="{DynamicResource TextPrimary}"/>
+                        <TextBlock Text="{Binding Signature}" FontSize="13" FontStyle="Italic" Foreground="{DynamicResource SettingsDescBrush}"/>
+                        <Button Classes="noteLink" Command="{Binding LinkCommand}" Cursor="Hand" HorizontalAlignment="Left" Padding="0" Margin="0,2,0,0"
+                                Background="Transparent" BorderThickness="0" ToolTip.Tip="Open the project's page in your browser">
+                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                <ic:SymbolIcon Symbol="Link" FontSize="14" Foreground="{DynamicResource SelectedAccent}" VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding LinkText}" FontSize="13" Foreground="{DynamicResource SelectedAccent}" TextDecorations="Underline" VerticalAlignment="Center"/>
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </Window.DataTemplates>
+
+    <Grid ColumnDefinitions="300,*">
+        <!-- ===== Navigation ===== -->
+        <DockPanel Grid.Column="0" Margin="16,18,10,16">
+            <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="12" Margin="6,0,0,20">
+                <Image Source="avares://ByteExplorer/Assets/Icon/ByteExplorer-64.png" Width="40" Height="40"/>
+                <StackPanel VerticalAlignment="Center">
+                    <TextBlock Text="ByteExplorer" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}"/>
+                    <TextBlock Text="Settings" FontSize="12" Foreground="{DynamicResource SettingsDescBrush}"/>
+                </StackPanel>
+            </StackPanel>
+            <TextBox x:Name="SearchBox" DockPanel.Dock="Top" Margin="0,0,0,14" Watermark="Find a setting"
+                     Text="{Binding SearchText}" CornerRadius="4">
+                <TextBox.InnerRightContent>
+                    <Panel>
+                        <ic:SymbolIcon Symbol="Search" FontSize="14" Margin="8,0,10,0" Foreground="{DynamicResource IconGray}"
+                                       IsVisible="{Binding !IsSearching}"/>
+                        <Button Classes="cmd" Padding="6" Margin="0,0,4,0" Command="{Binding ClearSearchCommand}" IsVisible="{Binding IsSearching}"
+                                ToolTip.Tip="Clear">
+                            <ic:SymbolIcon Symbol="Dismiss" FontSize="11" Foreground="{DynamicResource IconGray}"/>
+                        </Button>
+                    </Panel>
+                </TextBox.InnerRightContent>
+            </TextBox>
+            <ListBox x:Name="NavList" Classes="settingsNav" ItemsSource="{Binding Pages}" SelectedItem="{Binding SelectedPage}">
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SettingsPage">
+                        <Grid ColumnDefinitions="3,Auto,*" Height="36">
+                            <Border Classes="pill" Width="3" Height="16" CornerRadius="1.5" Background="{DynamicResource SelectedAccent}" VerticalAlignment="Center"/>
+                            <ic:SymbolIcon Grid.Column="1" Symbol="{Binding Icon}" FontSize="16" Margin="13,0,14,0" VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextPrimary}"/>
+                            <TextBlock Grid.Column="2" Text="{Binding Title}" VerticalAlignment="Center" FontSize="14"
+                                       Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis"/>
+                        </Grid>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+        </DockPanel>
+
+        <!-- ===== Page ===== -->
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*">
+            <TextBlock x:Name="HeadingText" Text="{Binding Heading}" FontSize="28" FontWeight="SemiBold" Margin="30,22,30,12"
+                       Foreground="{DynamicResource TextPrimary}"/>
+
+            <Border Grid.Row="1" x:Name="RestartBar" IsVisible="{Binding IsRestartPending}" Margin="30,0,46,10" Padding="16,10"
+                    CornerRadius="6" Background="{DynamicResource SettingsInfoBarBrush}" BorderBrush="{DynamicResource SettingsCardBorder}" BorderThickness="1">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <ic:SymbolIcon Symbol="Info" IconVariant="Filled" FontSize="18" Foreground="{DynamicResource SelectedAccent}" Margin="0,0,14,0" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" VerticalAlignment="Center" TextWrapping="Wrap" FontSize="13" Foreground="{DynamicResource TextPrimary}"
+                               Text="Some changes take effect after ByteExplorer restarts."/>
+                    <Button Grid.Column="2" Classes="settingsButton accent" Content="Restart now" Command="{Binding RestartCommand}" Margin="12,0,0,0"/>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="2" x:Name="ContentScroller" HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="30,0,46,30" MaxWidth="1000" HorizontalAlignment="Stretch">
+                    <TextBlock Text="{Binding NoResultsText}" IsVisible="{Binding HasNoResults}" Classes="cardDesc" FontSize="14" Margin="2,8"/>
+                    <ItemsControl x:Name="Groups" ItemsSource="{Binding VisibleGroups}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SettingGroup">
+                                <StackPanel>
+                                    <TextBlock Classes="groupTitle" Text="{Binding Title}" IsVisible="{Binding HasTitle}"/>
+                                    <ItemsControl ItemsSource="{Binding Items}"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+            </ScrollViewer>
+        </Grid>
+    </Grid>
+</Window>

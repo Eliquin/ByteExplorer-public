@@ -1,0 +1,168 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The app's palettes (Dark and Light theme dictionaries, chosen by the application's theme variant) and the shared icon
+    templates every view uses. Merged at Application level (App.axaml), so a key resolves the same way from any
+    view, window or popup (context menus and flyouts are separate visual roots and only see Application resources).
+-->
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Inter (bundled through Avalonia.Fonts.Inter) on every OS, so the app looks identical everywhere. -->
+    <FontFamily x:Key="UiFont">avares://Avalonia.Fonts.Inter/Assets#Inter</FontFamily>
+
+    <!-- ===== Window palettes. Every view refers to these keys with DynamicResource, so switching the application's
+         theme variant (Appearance.Theme: Light, Dark or System) re-colors the whole window live. ===== -->
+    <ResourceDictionary.ThemeDictionaries>
+        <!-- Dark: the WPF DarkMainWindow palette (the Modern layout's colors). -->
+        <ResourceDictionary x:Key="Dark">
+            <SolidColorBrush x:Key="TextPrimary"     Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="TextSecondary"   Color="#FFE6E6E6"/>
+            <SolidColorBrush x:Key="TextMuted"       Color="#FFA0A0A0"/>
+            <SolidColorBrush x:Key="IconGray"        Color="#FFD6D6D6"/>
+            <SolidColorBrush x:Key="BorderLight"     Color="#FF3A3A3A"/>
+            <SolidColorBrush x:Key="HoverBg"         Color="#FF2B2B2B"/>
+            <SolidColorBrush x:Key="PressedBg"       Color="#FF333333"/>
+            <SolidColorBrush x:Key="SelectedBg"      Color="#FF2C4A6E"/>
+            <SolidColorBrush x:Key="NavSelectedBg"   Color="#FF2C4A6E"/>
+            <SolidColorBrush x:Key="SelectedAccent"  Color="#FF4A90D9"/>
+            <SolidColorBrush x:Key="ContentBrush"    Color="#FF202020"/>
+            <SolidColorBrush x:Key="TitleBarBrush"   Color="#FF2B2B2B"/>
+            <SolidColorBrush x:Key="CommandBarBrush" Color="#FF2B2B2B"/>
+            <SolidColorBrush x:Key="NavBarBrush"     Color="#FF202020"/>
+            <SolidColorBrush x:Key="FieldBrush"      Color="#FF2B2B2B"/>
+            <SolidColorBrush x:Key="LeftPaneBrush"   Color="#FF202020"/>
+            <!-- Left panel designs (Settings > Left panel > Design): the Cards groups and the Chips row. -->
+            <SolidColorBrush x:Key="SidebarCardBg"   Color="#FF282828"/>
+            <SolidColorBrush x:Key="SidebarChipBg"   Color="#FF2C2C2C"/>
+            <SolidColorBrush x:Key="StatusBarBrush"  Color="#FF202020"/>
+            <SolidColorBrush x:Key="MenuBrush"       Color="#FF2C2C2C"/>
+            <SolidColorBrush x:Key="MenuBorderBrush" Color="#FF454545"/>
+            <SolidColorBrush x:Key="CloseHoverBg"    Color="#FFE81123"/>
+            <SolidColorBrush x:Key="DangerBrush"     Color="#FFFF6B6B"/>
+            <SolidColorBrush x:Key="PinGray"         Color="#FF9AA0A6"/>
+            <!-- Nemo layout surfaces: the sidebar and bars a step apart from the content, neutral row highlights. -->
+            <SolidColorBrush x:Key="NemoSidebarBrush"   Color="#FF262626"/>
+            <SolidColorBrush x:Key="NemoTitleBarBrush"  Color="#FF2B2B2B"/>
+            <SolidColorBrush x:Key="NemoStatusBarBrush" Color="#FF262626"/>
+            <SolidColorBrush x:Key="NemoHoverBg"        Color="#FF333333"/>
+            <SolidColorBrush x:Key="NemoActiveBg"       Color="#FF3B3B3B"/>
+            <!-- Tabs: the bar is a shade darker than the file list; the selected tab is the file list's own color, so it reads
+                 as the front of the list (horizontal), or a raised card (vertical). -->
+            <SolidColorBrush x:Key="TabStripBrush"         Color="#FF181818"/>
+            <SolidColorBrush x:Key="TabHoverBg"            Color="#FF262626"/>
+            <SolidColorBrush x:Key="TabSelectedBg"         Color="#FF202020"/>
+            <SolidColorBrush x:Key="TabCardBg"             Color="#FF2D2D2D"/>
+            <SolidColorBrush x:Key="TabSeparatorBrush"     Color="#FF333333"/>
+            <SolidColorBrush x:Key="TabDropBg"             Color="#FF243A55"/>
+            <SolidColorBrush x:Key="TabTitleBarSelectedBg" Color="#FF202020"/>
+            <BoxShadows x:Key="TabCardShadow">0 1 3 0 #40000000</BoxShadows>
+            <!-- Settings window, after Windows 11 Settings: a mica-like base, cards a step lighter with a hairline edge. -->
+            <SolidColorBrush x:Key="SettingsWindowBrush"   Color="#FF202020"/>
+            <SolidColorBrush x:Key="SettingsCardBrush"     Color="#FF2B2B2B"/>
+            <SolidColorBrush x:Key="SettingsCardHoverBrush" Color="#FF323232"/>
+            <SolidColorBrush x:Key="SettingsCardBorder"    Color="#FF1D1D1D"/>
+            <SolidColorBrush x:Key="SettingsNavHoverBg"    Color="#FF2D2D2D"/>
+            <SolidColorBrush x:Key="SettingsNavSelectedBg" Color="#FF2D2D2D"/>
+            <SolidColorBrush x:Key="SettingsInfoBarBrush"  Color="#FF2B3A4A"/>
+            <SolidColorBrush x:Key="SettingsDescBrush"     Color="#FFC5C5C5"/>
+            <!-- Items with the system attribute: a soft red that reads on the dark background and the selection. -->
+            <SolidColorBrush x:Key="SystemItemText"        Color="#FFFF7B72"/>
+        </ResourceDictionary>
+
+        <!-- Light: after Windows 11 File Explorer in light mode. Light grey title strip, white command bar and body,
+             grey secondary text, thin #E5E5E5 separators, grey selection in the navigation pane, light blue selection in
+             the file list, Windows blue accent. -->
+        <ResourceDictionary x:Key="Light">
+            <SolidColorBrush x:Key="TextPrimary"     Color="#FF1A1A1A"/>
+            <SolidColorBrush x:Key="TextSecondary"   Color="#FF5F5F5F"/>
+            <SolidColorBrush x:Key="TextMuted"       Color="#FF8A8A8A"/>
+            <SolidColorBrush x:Key="IconGray"        Color="#FF424242"/>
+            <SolidColorBrush x:Key="BorderLight"     Color="#FFE5E5E5"/>
+            <SolidColorBrush x:Key="HoverBg"         Color="#FFF0F0F0"/>
+            <SolidColorBrush x:Key="PressedBg"       Color="#FFE3E3E3"/>
+            <SolidColorBrush x:Key="SelectedBg"      Color="#FFCCE8FF"/>
+            <SolidColorBrush x:Key="NavSelectedBg"   Color="#FFE5E5E5"/>
+            <SolidColorBrush x:Key="SelectedAccent"  Color="#FF0067C0"/>
+            <SolidColorBrush x:Key="ContentBrush"    Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="TitleBarBrush"   Color="#FFF3F3F3"/>
+            <SolidColorBrush x:Key="CommandBarBrush" Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="NavBarBrush"     Color="#FFF9F9F9"/>
+            <SolidColorBrush x:Key="FieldBrush"      Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="LeftPaneBrush"   Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="SidebarCardBg"   Color="#FFF5F6F8"/>
+            <SolidColorBrush x:Key="SidebarChipBg"   Color="#FFF1F3F6"/>
+            <SolidColorBrush x:Key="StatusBarBrush"  Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="MenuBrush"       Color="#FFF9F9F9"/>
+            <SolidColorBrush x:Key="MenuBorderBrush" Color="#FFDADADA"/>
+            <SolidColorBrush x:Key="CloseHoverBg"    Color="#FFE81123"/>
+            <SolidColorBrush x:Key="DangerBrush"     Color="#FFC42B1C"/>
+            <SolidColorBrush x:Key="PinGray"         Color="#FF8A8A8A"/>
+            <!-- Nemo layout surfaces: the WPF Nemo window's light grays (sidebar #F2F2F2, bars #ECECEC, rows #DCDCDC). -->
+            <SolidColorBrush x:Key="NemoSidebarBrush"   Color="#FFF2F2F2"/>
+            <SolidColorBrush x:Key="NemoTitleBarBrush"  Color="#FFECECEC"/>
+            <SolidColorBrush x:Key="NemoStatusBarBrush" Color="#FFECECEC"/>
+            <SolidColorBrush x:Key="NemoHoverBg"        Color="#FFE3E3E3"/>
+            <SolidColorBrush x:Key="NemoActiveBg"       Color="#FFDCDCDC"/>
+            <SolidColorBrush x:Key="TabStripBrush"         Color="#FFF0F0F0"/>
+            <SolidColorBrush x:Key="TabHoverBg"            Color="#FFE4E4E4"/>
+            <SolidColorBrush x:Key="TabSelectedBg"         Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="TabCardBg"             Color="#FFFFFFFF"/>
+            <SolidColorBrush x:Key="TabSeparatorBrush"     Color="#FFD2D2D2"/>
+            <SolidColorBrush x:Key="TabDropBg"             Color="#FFCCE4FA"/>
+            <SolidColorBrush x:Key="TabTitleBarSelectedBg" Color="#FFF9F9F9"/>
+            <BoxShadows x:Key="TabCardShadow">0 1 3 0 #26000000</BoxShadows>
+            <SolidColorBrush x:Key="SettingsWindowBrush"   Color="#FFF3F3F3"/>
+            <SolidColorBrush x:Key="SettingsCardBrush"     Color="#FFFBFBFB"/>
+            <SolidColorBrush x:Key="SettingsCardHoverBrush" Color="#FFF6F6F6"/>
+            <SolidColorBrush x:Key="SettingsCardBorder"    Color="#FFE5E5E5"/>
+            <SolidColorBrush x:Key="SettingsNavHoverBg"    Color="#FFEAEAEA"/>
+            <SolidColorBrush x:Key="SettingsNavSelectedBg" Color="#FFEAEAEA"/>
+            <SolidColorBrush x:Key="SettingsInfoBarBrush"  Color="#FFE8F1FB"/>
+            <SolidColorBrush x:Key="SettingsDescBrush"     Color="#FF5D5D5D"/>
+            <SolidColorBrush x:Key="SystemItemText"        Color="#FFC42B1C"/>
+        </ResourceDictionary>
+    </ResourceDictionary.ThemeDictionaries>
+
+    <!-- ===== Folder / app icon colors (ExplorerColors.xaml) ===== -->
+    <SolidColorBrush x:Key="FolderBlue"     Color="#FF5BA3E0"/>
+    <SolidColorBrush x:Key="FolderBlueLid"  Color="#FF7EBBED"/>
+    <SolidColorBrush x:Key="FolderGreen"    Color="#FF3FA65A"/>
+    <SolidColorBrush x:Key="FolderGreenLid" Color="#FF63C57F"/>
+    <SolidColorBrush x:Key="FolderYellow"   Color="#FFF6C144"/>
+    <SolidColorBrush x:Key="FolderYellowLid" Color="#FFFAD675"/>
+    <SolidColorBrush x:Key="DocBlue"        Color="#FF4E7FC1"/>
+    <SolidColorBrush x:Key="PictureBlue"    Color="#FF3E8FDE"/>
+    <SolidColorBrush x:Key="MusicPink"      Color="#FFE0609B"/>
+    <SolidColorBrush x:Key="VideoPurple"    Color="#FF7A5FC7"/>
+    <SolidColorBrush x:Key="HomeBrown"      Color="#FFB9852F"/>
+    <SolidColorBrush x:Key="CloudBlue"      Color="#FF2E7BD6"/>
+    <SolidColorBrush x:Key="MonitorBlue"    Color="#FF3D77B8"/>
+    <SolidColorBrush x:Key="CheckGreen"     Color="#FF2FA84F"/>
+    <SolidColorBrush x:Key="UnreachableRed" Color="#FFC42B1C"/>
+
+    <!-- Shared sizes. -->
+    <Thickness x:Key="PanelPadding">8</Thickness>
+    <x:Double x:Key="SplitterWidth">4</x:Double>
+
+    <!-- ===== Vector icons (ExplorerIcons.xaml). The fill color comes from Tag, so one template covers every color. ===== -->
+    <ControlTemplate x:Key="FolderIcon" TargetType="ContentControl">
+        <Grid Width="18" Height="16">
+            <Path Data="M0,3 L6,3 L8,5 L18,5 L18,15 L0,15 Z" Fill="{TemplateBinding Tag}" Stretch="Fill"/>
+            <Path Data="M0,4 L18,4 L18,15 L0,15 Z" Fill="{TemplateBinding Tag}" Opacity="0.85" Margin="0,3,0,0" Stretch="Fill"/>
+        </Grid>
+    </ControlTemplate>
+
+    <ControlTemplate x:Key="FileIcon" TargetType="ContentControl">
+        <Grid Width="14" Height="18">
+            <Path Data="M0,0 L9,0 L14,5 L14,18 L0,18 Z" Fill="White" Stroke="#FFB0B4BA" StrokeThickness="1" Stretch="Fill"/>
+            <Path Data="M9,0 L9,5 L14,5 Z" Fill="#FFDDE1E6"/>
+            <Rectangle Width="8" Height="3" RadiusX="1" RadiusY="1" Fill="{TemplateBinding Tag}"
+                       HorizontalAlignment="Left" VerticalAlignment="Top" Margin="3,10,0,0"/>
+        </Grid>
+    </ControlTemplate>
+
+</ResourceDictionary>

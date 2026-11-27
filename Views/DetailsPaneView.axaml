@@ -1,0 +1,60 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The details pane of both layouts (the right panel): a header for what the file list has in focus (one item, a
+    multiple selection, or the folder itself when nothing is selected), its property rows, and the preview. One view for
+    both windows instead of two copies of the same XAML; it reads only FileListViewModel.Preview, which the file list
+    updates on selection and folder changes and which MainViewModel switches off while the pane is hidden.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:vm="using:ByteExplorer.ViewModels"
+             xmlns:infra="using:ByteExplorer.Infrastructure"
+             xmlns:views="using:ByteExplorer.Views"
+             x:Class="ByteExplorer.Views.DetailsPaneView"
+             x:DataType="vm:MainViewModel">
+    <Panel>
+        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Margin="16" Spacing="10"
+                    IsVisible="{Binding !FileListViewModel.Preview.HasSubject}">
+            <ic:SymbolIcon Symbol="Info" FontSize="36" Foreground="{DynamicResource IconGray}" HorizontalAlignment="Center"/>
+            <TextBlock x:Name="EmptyHint" Text="Select a file or folder to see details" Foreground="{DynamicResource TextSecondary}" FontSize="12"
+                       TextWrapping="Wrap" TextAlignment="Center"/>
+        </StackPanel>
+
+        <Grid RowDefinitions="Auto,*" IsVisible="{Binding FileListViewModel.Preview.HasSubject}">
+            <StackPanel Grid.Row="0" Margin="16">
+                <ic:SymbolIcon x:Name="HeaderIcon" Symbol="{Binding FileListViewModel.Preview.Icon}"
+                               Foreground="{Binding FileListViewModel.Preview.IconBrush}"
+                               IconVariant="Filled" FontSize="64" HorizontalAlignment="Center" Margin="0,8,0,12"/>
+                <TextBlock x:Name="HeaderTitle" Text="{Binding FileListViewModel.Preview.Title}" FontSize="14" FontWeight="SemiBold"
+                           TextWrapping="Wrap" TextAlignment="Center" MaxLines="4" TextTrimming="CharacterEllipsis"
+                           Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,16" ToolTip.Tip="{Binding FileListViewModel.Preview.Title}"/>
+                <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0" Margin="0,0,0,10"/>
+                <!-- Type, size and date at once, then what FileMetadataReader adds (dimensions, length, date taken, contents…). -->
+                <ItemsControl x:Name="DetailRows" ItemsSource="{Binding FileListViewModel.Preview.Details}" Grid.IsSharedSizeScope="True">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="infra:FileDetailRow">
+                            <Grid Margin="0,0,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" SharedSizeGroup="DetailLabel"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="{Binding Label}" Foreground="{DynamicResource TextSecondary}" FontSize="12" Margin="0,0,10,0"/>
+                                <SelectableTextBlock Grid.Column="1" Text="{Binding Value}" Foreground="{DynamicResource TextPrimary}" FontSize="12" TextWrapping="Wrap"/>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <Border BorderBrush="{DynamicResource BorderLight}" BorderThickness="0,1,0,0" Margin="0,8,0,0"
+                        IsVisible="{Binding !FileListViewModel.Preview.IsMultiSelection}"/>
+            </StackPanel>
+            <!-- A multiple selection has nothing to preview: the totals are the content. -->
+            <views:FilePreviewPanel Grid.Row="1" x:Name="PreviewPanel" Margin="16,0,16,16"
+                                    IsVisible="{Binding !FileListViewModel.Preview.IsMultiSelection}"/>
+        </Grid>
+    </Panel>
+</UserControl>

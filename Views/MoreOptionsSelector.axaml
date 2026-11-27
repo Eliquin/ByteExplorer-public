@@ -1,0 +1,82 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The toolbar's "..." menu. DataContext: the window's MainViewModel; every row runs the active pane's existing
+    FileListViewModel command (disabled while the command cannot run), and the flyout closes itself after a click. Port
+    of the WPF Popup-based menu as a MenuFlyout with the same rows and groups.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:vm="using:ByteExplorer.ViewModels"
+             xmlns:conv="using:ByteExplorer.Infrastructure.Converters"
+             x:Class="ByteExplorer.Views.MoreOptionsSelector"
+             x:DataType="vm:MainViewModel">
+    <Button Classes="cmd" Width="32" Padding="0,6" ToolTip.Tip="More options">
+        <ic:SymbolIcon Symbol="MoreHorizontal" FontSize="17"/>
+        <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedLeft" Opening="OnMenuOpening">
+                <MenuItem Header="{Binding Operations.UndoText}" Command="{Binding Operations.UndoCommand}" InputGesture="Ctrl+Z">
+                    <MenuItem.Icon>
+                        <ic:SymbolIcon Symbol="ArrowUndo" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="{Binding Operations.RedoText}" Command="{Binding Operations.RedoCommand}" InputGesture="Ctrl+Y">
+                    <MenuItem.Icon>
+                        <ic:SymbolIcon Symbol="ArrowRedo" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="Select all" Command="{Binding FileListViewModel.SelectAllCommand}" InputGesture="Ctrl+A"/>
+                <MenuItem Header="Select none" Command="{Binding FileListViewModel.SelectNoneCommand}">
+                    <MenuItem.Icon>
+                        <ic:SymbolIcon Symbol="SelectAllOff" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem Header="Invert selection" Command="{Binding FileListViewModel.InvertSelectionCommand}"/>
+                <Separator/>
+                <!-- For the selected items. -->
+                <MenuItem Header="Compress to ZIP file" Command="{Binding FileListViewModel.CompressSelectionCommand}">
+                    <MenuItem.Icon>
+                        <ic:SymbolIcon Symbol="FolderZip" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <MenuItem x:Name="PinItem" Header="Pin to Quick access" Command="{Binding FileListViewModel.TogglePinSelectionCommand}">
+                    <MenuItem.Icon>
+                        <ic:SymbolIcon Symbol="Pin" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <!-- The right-click menu's Password submenu for the selection (protect, or open/lock/change/remove), built on opening. -->
+                <MenuItem x:Name="PasswordItem" Header="Password">
+                    <MenuItem.Icon>
+                        <ic:SymbolIcon Symbol="Password" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="Calculate folder sizes" Command="{Binding FileListViewModel.CalculateFolderSizesCommand}" InputGesture="Alt+Shift+Enter"/>
+                <MenuItem Header="Copy path" Command="{Binding FileListViewModel.CopyPathCommand}"/>
+                <MenuItem Header="Properties" Command="{Binding FileListViewModel.PropertiesCommand}"/>
+                <Separator/>
+                <MenuItem Header="Open in Terminal here" Command="{Binding FileListViewModel.OpenTerminalCommand}"/>
+                <Separator/>
+                <MenuItem Header="Theme">
+                    <MenuItem Header="System" ToggleType="Radio" GroupName="theme" Command="{Binding SetThemeCommand}" CommandParameter="System"
+                              IsChecked="{Binding Theme, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=System}"/>
+                    <MenuItem Header="Light" ToggleType="Radio" GroupName="theme" Command="{Binding SetThemeCommand}" CommandParameter="Light"
+                              IsChecked="{Binding Theme, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Light}"/>
+                    <MenuItem Header="Dark" ToggleType="Radio" GroupName="theme" Command="{Binding SetThemeCommand}" CommandParameter="Dark"
+                              IsChecked="{Binding Theme, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Dark}"/>
+                </MenuItem>
+                <Separator/>
+                <MenuItem Header="Settings" Click="OnSettingsClick" InputGesture="Ctrl+OemComma">
+                    <MenuItem.Icon>
+                        <ic:SymbolIcon Symbol="Settings" FontSize="16"/>
+                    </MenuItem.Icon>
+                </MenuItem>
+            </MenuFlyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>

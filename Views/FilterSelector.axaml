@@ -1,0 +1,46 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The toolbar's Filter menu. DataContext: the window's MainViewModel; every option sets FileListViewModel.CategoryFilter
+    (the active pane's list), which re-filters the folder's index in one pass. Port of the WPF Popup-based selector as a
+    MenuFlyout with the same eight categories in the same groups, the current one checked.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:vm="using:ByteExplorer.ViewModels"
+             xmlns:conv="using:ByteExplorer.Infrastructure.Converters"
+             x:Class="ByteExplorer.Views.FilterSelector"
+             x:DataType="vm:MainViewModel">
+    <Button Classes="cmd" Padding="10,6" ToolTip.Tip="Filter">
+        <StackPanel Orientation="Horizontal">
+            <ic:SymbolIcon Symbol="Filter" FontSize="16" VerticalAlignment="Center"/>
+            <TextBlock Text="Filter" Margin="6,0,2,0" VerticalAlignment="Center"/>
+            <ic:SymbolIcon Symbol="ChevronDown" FontSize="10" Margin="4,0,0,0" VerticalAlignment="Center"/>
+        </StackPanel>
+        <Button.Flyout>
+            <MenuFlyout Placement="BottomEdgeAlignedLeft">
+                <MenuItem Header="All items" Tag="All" ToggleType="Radio" GroupName="CategoryFilter" Click="OnCategoryClick"
+                          IsChecked="{Binding FileListViewModel.CategoryFilter, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=All}"/>
+                <MenuItem Header="Folders only" Tag="FoldersOnly" ToggleType="Radio" GroupName="CategoryFilter" Click="OnCategoryClick"
+                          IsChecked="{Binding FileListViewModel.CategoryFilter, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=FoldersOnly}"/>
+                <MenuItem Header="Files only" Tag="FilesOnly" ToggleType="Radio" GroupName="CategoryFilter" Click="OnCategoryClick"
+                          IsChecked="{Binding FileListViewModel.CategoryFilter, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=FilesOnly}"/>
+                <Separator/>
+                <MenuItem Header="Images" Tag="Images" ToggleType="Radio" GroupName="CategoryFilter" Click="OnCategoryClick"
+                          IsChecked="{Binding FileListViewModel.CategoryFilter, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Images}"/>
+                <MenuItem Header="Documents" Tag="Documents" ToggleType="Radio" GroupName="CategoryFilter" Click="OnCategoryClick"
+                          IsChecked="{Binding FileListViewModel.CategoryFilter, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Documents}"/>
+                <MenuItem Header="Videos" Tag="Videos" ToggleType="Radio" GroupName="CategoryFilter" Click="OnCategoryClick"
+                          IsChecked="{Binding FileListViewModel.CategoryFilter, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Videos}"/>
+                <MenuItem Header="Music" Tag="Music" ToggleType="Radio" GroupName="CategoryFilter" Click="OnCategoryClick"
+                          IsChecked="{Binding FileListViewModel.CategoryFilter, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Music}"/>
+                <MenuItem Header="Archives" Tag="Archives" ToggleType="Radio" GroupName="CategoryFilter" Click="OnCategoryClick"
+                          IsChecked="{Binding FileListViewModel.CategoryFilter, Mode=OneWay, Converter={x:Static conv:Conv.EnumEquals}, ConverterParameter=Archives}"/>
+            </MenuFlyout>
+        </Button.Flyout>
+    </Button>
+</UserControl>

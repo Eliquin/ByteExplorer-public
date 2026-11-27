@@ -1,0 +1,92 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <RootNamespace>ByteExplorer</RootNamespace>
+    <AssemblyName>ByteExplorer</AssemblyName>
+    <ApplicationIcon>Assets/Icon/ByteExplorer.ico</ApplicationIcon>
+    <LangVersion>13.0</LangVersion>
+    <!-- One small unsafe method: the aligned buffer of an unbuffered read (FileVerification, Windows). -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- The codebase predates nullable reference types; enabling them is a separate, file-by-file job. -->
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <Version>1.0.0</Version>
+    <Product>ByteExplorer</Product>
+    <Authors>Eliquin and ByteExplorer contributors</Authors>
+    <Copyright>Copyright © 2026 Eliquin and ByteExplorer contributors. Licensed under the Mozilla Public License 2.0.</Copyright>
+    <PackageLicenseExpression>MPL-2.0</PackageLicenseExpression>
+    <!-- Compiled bindings: every {Binding} in .axaml is checked at build time against its x:DataType, so a typo is a
+         build error instead of a silently empty control at run time. -->
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <BuiltInComInteropSupport>true</BuiltInComInteropSupport>
+    <TieredPGO>true</TieredPGO>
+    <ServerGarbageCollector>false</ServerGarbageCollector>
+    <ConcurrentGarbageCollection>true</ConcurrentGarbageCollection>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- Tools/Installer/build-installer.ps1 publishes into artifacts/: never part of the next build's items. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts/**</DefaultItemExcludes>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <PublishReadyToRun Condition="'$(RuntimeIdentifier)' != ''">true</PublishReadyToRun>
+    <SelfContained>false</SelfContained>
+    <DebugType>pdbonly</DebugType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Desktop" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.3.13" />
+    <!-- Inter: the UI font on every OS, so the app looks the same on Windows, Linux and macOS. -->
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="11.3.22" />
+    <PackageReference Include="Avalonia.Diagnostics" Version="11.3.22" Condition="'$(Configuration)' == 'Debug'" />
+    <!-- LibVLC bindings only: the video surface is the app's own Views/VideoView (no LibVLCSharp.Avalonia needed). -->
+    <PackageReference Include="LibVLCSharp" Version="3.10.2" />
+    <!-- Native libvlc ships with the app on Windows only; Linux and macOS use the system's VLC (libvlc) install.
+         A range: the lowest 3.0.x available from 3.0.21 on (any of them works; offline machines use what they have). -->
+    <PackageReference Include="VideoLAN.LibVLC.Windows" Version="[3.0.21,3.1)" />
+    <!-- System.Media.SystemSounds (used on Windows only, see Core/Platform/SystemSoundPlayer.cs). -->
+    <PackageReference Include="System.Windows.Extensions" Version="9.0.11" />
+    <PackageReference Include="Serilog" Version="4.2.0" />
+    <PackageReference Include="Serilog.Sinks.Debug" Version="3.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets/Icon/ByteExplorer.ico" />
+    <AvaloniaResource Include="Assets/Icon/ByteExplorer-32.png" />
+    <AvaloniaResource Include="Assets/Icon/ByteExplorer-64.png" />
+    <!-- Icon font (Fluent UI System Icons, MIT; see THIRD-PARTY-NOTICES.md), bundled so the app needs no icon package. -->
+    <AvaloniaResource Include="Assets/Fonts/SeagullFluentIcons.ttf" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ByteExplorer.Tests" />
+  </ItemGroup>
+
+  <!-- The license, the third-party notices and their license texts go next to the program in every build and publish:
+       the MIT, BSD, Apache, OFL and LGPL/GPL components require their notices to travel with the binaries. -->
+  <ItemGroup>
+    <None Update="LICENSE;THIRD-PARTY-NOTICES.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <None Update="licenses/**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <!-- The test project lives under Tests/; keep its sources out of the app's default globs. -->
+  <ItemGroup>
+    <Compile Remove="Tests/**" />
+    <AvaloniaXaml Remove="Tests/**" />
+    <None Remove="Tests/**" />
+    <EmbeddedResource Remove="Tests/**" />
+    <!-- Agent worktrees (.claude/worktrees) hold whole copies of the repository: never part of this build. -->
+    <Compile Remove=".claude/**" />
+    <AvaloniaXaml Remove=".claude/**" />
+    <None Remove=".claude/**" />
+    <EmbeddedResource Remove=".claude/**" />
+  </ItemGroup>
+
+</Project>

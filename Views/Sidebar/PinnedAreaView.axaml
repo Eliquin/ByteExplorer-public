@@ -1,0 +1,99 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    Quick access: the pinned places at the top of the sidebar. Each row opens its folder (middle click: in the other
+    pane), takes dropped files (copy or move into it; on the trash: delete), and shows an unpin button on hover. Rows are
+    dragged to reorder (an accent line shows where they will land); folders dragged here from anywhere are pinned at the
+    line. Keyboard: arrows move between rows, Alt+arrows reorder, Enter opens, Delete unpins, F2 renames, the menu key
+    opens the row's menu. DataContext: PinnedFoldersViewModel. Two looks: Modern (colored icons) and Nemo (gray icons,
+    rounded rows), picked by Variant. The behaviour is in the code-behind.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             xmlns:side="using:ByteExplorer.ViewModels.Sidebar"
+             x:Class="ByteExplorer.Views.Sidebar.PinnedAreaView"
+             x:DataType="side:PinnedFoldersViewModel"
+             DragDrop.AllowDrop="True">
+    <UserControl.Resources>
+        <DataTemplate x:Key="ModernPinTemplate" x:DataType="side:PinnedItemViewModel">
+            <Border Classes="navRow pinRow" Classes.active="{Binding IsActive}" Classes.unavailable="{Binding !IsAvailable}"
+                    Tag="{Binding}" Focusable="True" ToolTip.Tip="{Binding ToolTip}" AutomationProperties.Name="{Binding Name}">
+                <Grid Margin="23,0,6,0" ColumnDefinitions="Auto,*,Auto">
+                    <ic:SymbolIcon Symbol="{Binding Icon}" FontSize="16" Foreground="{Binding IconBrush}" IconVariant="Filled" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="10,0,4,0" FontSize="13" Foreground="{DynamicResource TextPrimary}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                    <Button Grid.Column="2" Classes="unpin" Tag="{Binding}" ToolTip.Tip="Unpin from Quick access" Click="OnUnpinClick">
+                        <ic:SymbolIcon Symbol="Pin" IconVariant="Filled" FontSize="12"/>
+                    </Button>
+                </Grid>
+            </Border>
+        </DataTemplate>
+
+        <DataTemplate x:Key="NemoPinTemplate" x:DataType="side:PinnedItemViewModel">
+            <Border Classes="navRow nemo pinRow" Classes.active="{Binding IsActive}" Classes.unavailable="{Binding !IsAvailable}"
+                    Tag="{Binding}" Focusable="True" ToolTip.Tip="{Binding ToolTip}" AutomationProperties.Name="{Binding Name}">
+                <Grid ColumnDefinitions="Auto,*,Auto">
+                    <ic:SymbolIcon Symbol="{Binding Icon}" FontSize="17" Foreground="{Binding MonochromeBrush}" VerticalAlignment="Center"/>
+                    <TextBlock Grid.Column="1" Text="{Binding Name}" Margin="11,0,4,0" FontSize="13" Foreground="{DynamicResource TextPrimary}"
+                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis"/>
+                    <Button Grid.Column="2" Classes="unpin" Tag="{Binding}" ToolTip.Tip="Unpin" Click="OnUnpinClick">
+                        <ic:SymbolIcon Symbol="Pin" IconVariant="Filled" FontSize="12"/>
+                    </Button>
+                </Grid>
+            </Border>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <!-- The unpin button appears with the pointer or the keyboard on the row. -->
+        <Style Selector="Button.unpin">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="4"/>
+            <Setter Property="MinWidth" Value="0"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Opacity" Value="0"/>
+            <Setter Property="Focusable" Value="False"/>
+            <Setter Property="Foreground" Value="{DynamicResource PinGray}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+        <Style Selector="Border.pinRow:pointerover Button.unpin, Border.pinRow:focus-within Button.unpin">
+            <Setter Property="Opacity" Value="1"/>
+        </Style>
+        <Style Selector="Button.unpin:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+            <Setter Property="Background" Value="{DynamicResource PressedBg}"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="Border.pinRow:focus-visible">
+            <Setter Property="BorderBrush" Value="{DynamicResource SelectedAccent}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+        </Style>
+        <Style Selector="Border.pinRow.dragging">
+            <Setter Property="Opacity" Value="0.4"/>
+        </Style>
+    </UserControl.Styles>
+
+    <Panel>
+        <StackPanel>
+            <ItemsControl x:Name="PinList" ItemsSource="{Binding Items}"/>
+
+            <!-- Nothing pinned: say how to pin, and take folders dropped here. -->
+            <Border IsVisible="{Binding !HasItems}" Margin="12,2,12,6" Padding="12,10" CornerRadius="6"
+                    BorderBrush="{DynamicResource BorderLight}" BorderThickness="1">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="Nothing pinned yet" FontSize="12.5" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondary}"/>
+                    <TextBlock Text="Drag a folder here, press Ctrl+D in a folder, or right-click it and choose Pin to Quick access."
+                               FontSize="11.5" Foreground="{DynamicResource TextMuted}" TextWrapping="Wrap"/>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- Where a dragged pin or folder will land. -->
+        <Border x:Name="InsertLine" Height="2" CornerRadius="1" Background="{DynamicResource SelectedAccent}"
+                VerticalAlignment="Top" HorizontalAlignment="Stretch" Margin="14,0,10,0" IsVisible="False" IsHitTestVisible="False"/>
+    </Panel>
+</UserControl>

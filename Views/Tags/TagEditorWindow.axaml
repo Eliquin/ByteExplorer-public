@@ -1,0 +1,171 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    The tag editor: the detailed way to tag (the quick way is the context menu's Tags submenu). Left: every tag as a tree
+    with a check box for the edited items (a dash: some of them have it) and a find-or-create box. Right: the selected
+    tag's name, color, parent and description, and buttons for a sub-tag or deleting it. Below: the items' comment. Tag
+    changes apply at once; the items' tags and comment when Save is pressed. Without items it manages the tags only.
+-->
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ic="using:ByteExplorer.Icons"
+        xmlns:vm="using:ByteExplorer.ViewModels.Tags"
+        x:Class="ByteExplorer.Views.Tags.TagEditorWindow"
+        x:DataType="vm:TagEditorViewModel"
+        Title="{Binding Title}"
+        Width="760" Height="620" MinWidth="560" MinHeight="460"
+        WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
+        Icon="avares://ByteExplorer/Assets/Icon/ByteExplorer.ico"
+        Background="{DynamicResource SettingsWindowBrush}"
+        FontFamily="{DynamicResource UiFont}" FontSize="13">
+    <Window.Styles>
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="Foreground" Value="{DynamicResource SettingsDescBrush}"/>
+            <Setter Property="Margin" Value="0,10,0,4"/>
+        </Style>
+        <Style Selector="Border.card">
+            <Setter Property="Background" Value="{DynamicResource SettingsCardBrush}"/>
+            <Setter Property="BorderBrush" Value="{DynamicResource SettingsCardBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+        </Style>
+        <Style Selector="Button.swatch">
+            <Setter Property="Width" Value="26"/>
+            <Setter Property="Height" Value="26"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,6,6"/>
+            <Setter Property="CornerRadius" Value="13"/>
+            <Setter Property="BorderThickness" Value="2"/>
+            <Setter Property="BorderBrush" Value="Transparent"/>
+        </Style>
+        <Style Selector="Button.swatch.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource TextPrimary}"/>
+        </Style>
+        <Style Selector="Button.danger">
+            <Setter Property="Foreground" Value="{DynamicResource DangerBrush}"/>
+        </Style>
+        <Style Selector="ListBox#TagList ListBoxItem">
+            <Setter Property="Padding" Value="8,0"/>
+            <Setter Property="MinHeight" Value="34"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto" Margin="20,16,20,16">
+        <!-- Header -->
+        <StackPanel Grid.Row="0" Spacing="2" Margin="0,0,0,12">
+            <TextBlock Text="{Binding Title}" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" TextTrimming="CharacterEllipsis"/>
+            <TextBlock Text="{Binding Subtitle}" FontSize="12" Foreground="{DynamicResource SettingsDescBrush}" TextTrimming="PrefixCharacterEllipsis"/>
+        </StackPanel>
+
+        <Grid Grid.Row="1" ColumnDefinitions="3*,12,2*">
+            <!-- Tags -->
+            <Border Grid.Column="0" Classes="card" Padding="10">
+                <DockPanel>
+                    <Grid DockPanel.Dock="Top" ColumnDefinitions="*,Auto" Margin="0,0,0,6">
+                        <TextBox x:Name="FilterBox" Text="{Binding Filter}" Watermark="Find or create a tag (Work/Project A)">
+                            <TextBox.KeyBindings>
+                                <KeyBinding Gesture="Enter" Command="{Binding CreateCommand}"/>
+                            </TextBox.KeyBindings>
+                        </TextBox>
+                        <Button Grid.Column="1" x:Name="CreateButton" Classes="accent" Margin="8,0,0,0" Content="{Binding CreateText}"
+                                Command="{Binding CreateCommand}" MaxWidth="220"/>
+                    </Grid>
+                    <TextBlock DockPanel.Dock="Top" Text="{Binding Error}" IsVisible="{Binding HasError}" Foreground="{DynamicResource DangerBrush}"
+                               FontSize="12" TextWrapping="Wrap" Margin="2,0,0,6"/>
+                    <Panel>
+                        <ListBox x:Name="TagList" ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected}" Background="Transparent">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:TagEditorRow">
+                                    <Grid ColumnDefinitions="Auto,Auto,Auto,*,Auto" Margin="{Binding Indent}" Background="Transparent"
+                                          ToolTip.Tip="{Binding Description}">
+                                        <CheckBox Grid.Column="0" IsThreeState="True" IsChecked="{Binding State}" MinWidth="0" Margin="0,0,6,0"
+                                                  IsVisible="{Binding $parent[Window].((vm:TagEditorViewModel)DataContext).HasItems}"
+                                                  AutomationProperties.Name="{Binding FullName}"/>
+                                        <Ellipse Grid.Column="1" Width="12" Height="12" Fill="{Binding Brush}" VerticalAlignment="Center" Margin="2,0,10,0"/>
+                                        <ic:SymbolIcon Grid.Column="2" Symbol="ChevronRight" FontSize="10" Foreground="{DynamicResource IconGray}"
+                                                       VerticalAlignment="Center" Margin="0,0,4,0" IsVisible="False"/>
+                                        <TextBlock Grid.Column="3" Text="{Binding Name}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis"
+                                                   Foreground="{DynamicResource TextPrimary}"/>
+                                        <TextBlock Grid.Column="4" Text="{Binding CountText}" VerticalAlignment="Center" FontSize="11.5" Margin="10,0,4,0"
+                                                   Foreground="{DynamicResource SettingsDescBrush}"/>
+                                    </Grid>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                        <TextBlock IsVisible="{Binding HasNoTags}" Text="No tags yet. Type a name above and press Enter; a slash makes a sub-tag (Work/Project A)."
+                                   TextWrapping="Wrap" TextAlignment="Center" VerticalAlignment="Center" Margin="20"
+                                   Foreground="{DynamicResource SettingsDescBrush}"/>
+                    </Panel>
+                </DockPanel>
+            </Border>
+
+            <!-- Selected tag -->
+            <Border Grid.Column="2" Classes="card" Padding="14,6,14,14">
+                <Panel>
+                    <TextBlock IsVisible="{Binding !HasSelection}" Text="Select a tag to rename it, change its color, move it under another tag or describe it."
+                               TextWrapping="Wrap" VerticalAlignment="Center" TextAlignment="Center" Foreground="{DynamicResource SettingsDescBrush}"/>
+                    <ScrollViewer IsVisible="{Binding HasSelection}" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <TextBlock Classes="label" Text="Name"/>
+                            <TextBox x:Name="NameBox" Text="{Binding SelectedName, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"/>
+                            <TextBlock Classes="label" Text="Color"/>
+                            <ItemsControl ItemsSource="{Binding Colors}">
+                                <ItemsControl.ItemsPanel>
+                                    <ItemsPanelTemplate>
+                                        <WrapPanel/>
+                                    </ItemsPanelTemplate>
+                                </ItemsControl.ItemsPanel>
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TagColorChoice">
+                                        <Button Classes="swatch" Classes.selected="{Binding IsSelected}" Background="{Binding Brush}" ToolTip.Tip="{Binding Name}"
+                                                Command="{Binding $parent[Window].((vm:TagEditorViewModel)DataContext).SetColorCommand}" CommandParameter="{Binding Name}"/>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                            <TextBlock Classes="label" Text="Parent"/>
+                            <ComboBox x:Name="ParentBox" HorizontalAlignment="Stretch" ItemsSource="{Binding ParentChoices}" SelectedItem="{Binding SelectedParent}">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate x:DataType="vm:TagParentChoice">
+                                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Classes="label" Text="Description"/>
+                            <TextBox Text="{Binding SelectedDescription, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" AcceptsReturn="True" TextWrapping="Wrap"
+                                     MinHeight="56" Watermark="What the tag is for (shown in tool tips)"/>
+                            <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,14,0,0">
+                                <Button Content="New sub-tag…" Click="OnNewSubTagClick"/>
+                                <Button Classes="danger" Content="Delete tag…" Click="OnDeleteTagClick"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Panel>
+            </Border>
+        </Grid>
+
+        <!-- Comment -->
+        <StackPanel Grid.Row="2" IsVisible="{Binding HasItems}" Margin="0,12,0,0">
+            <TextBlock Text="Comment" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimary}" Margin="0,0,0,4"/>
+            <TextBox x:Name="CommentBox" Text="{Binding Comment}" AcceptsReturn="True" TextWrapping="Wrap" Height="64" MaxLength="2000"
+                     Watermark="{Binding CommentHint}"/>
+        </StackPanel>
+
+        <!-- Buttons -->
+        <Grid Grid.Row="3" ColumnDefinitions="Auto,*,Auto" Margin="0,14,0,0">
+            <Button Grid.Column="0" Content="Uncheck all" Command="{Binding RemoveAllCommand}" IsVisible="{Binding HasItems}"
+                    ToolTip.Tip="Take every tag off the items (applied when you save)"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                <Button x:Name="CancelButton" Content="Cancel" MinWidth="96" HorizontalContentAlignment="Center" Click="OnCancelClick" IsCancel="True"
+                        IsVisible="{Binding HasItems}"/>
+                <Button x:Name="SaveButton" Classes="accent" MinWidth="96" HorizontalContentAlignment="Center" Click="OnSaveClick" IsDefault="True"
+                        Content="Save" IsVisible="{Binding HasItems}"/>
+                <Button x:Name="CloseButton" Classes="accent" MinWidth="96" HorizontalContentAlignment="Center" Click="OnCancelClick" IsCancel="True"
+                        Content="Close" IsVisible="{Binding !HasItems}"/>
+            </StackPanel>
+        </Grid>
+    </Grid>
+</Window>

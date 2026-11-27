@@ -1,0 +1,59 @@
+<!--
+    This Source Code Form is subject to the terms of the Mozilla Public
+    License, v. 2.0. If a copy of the MPL was not distributed with this
+    file, You can obtain one at https://mozilla.org/MPL/2.0/.
+-->
+<!--
+    Playback controls for a MediaPlaybackEngine: seek bar with elapsed/total time, play/pause, stop and volume. Used twice
+    on the same engine: under the preview pane's video and at the bottom of the full-screen window, so both show the same
+    state and either can drive playback. Values are pushed from code (Refresh, called by the owner's timer) rather than
+    bound: the engine's state is plain fields written by LibVLC's event thread, not observable properties.
+-->
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:ic="using:ByteExplorer.Icons"
+             x:Class="ByteExplorer.Views.MediaTransportBar">
+
+    <!-- A compact slider: the Fluent default thumb (20px) is oversized for a narrow details pane. -->
+    <UserControl.Resources>
+        <x:Double x:Key="SliderHorizontalThumbWidth">12</x:Double>
+        <x:Double x:Key="SliderHorizontalThumbHeight">12</x:Double>
+        <CornerRadius x:Key="SliderThumbCornerRadius">6</CornerRadius>
+    </UserControl.Resources>
+
+    <UserControl.Styles>
+        <Style Selector="Button.transport">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="CornerRadius" Value="16"/>
+        </Style>
+        <Style Selector="TextBlock.time">
+            <Setter Property="FontSize" Value="10.5"/>
+            <Setter Property="Foreground" Value="{DynamicResource TextSecondary}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+    </UserControl.Styles>
+
+    <StackPanel>
+        <Grid ColumnDefinitions="Auto,*,Auto">
+            <TextBlock x:Name="ElapsedText" Grid.Column="0" Classes="time" Text="0:00" Margin="0,0,6,0"/>
+            <Slider x:Name="SeekSlider" Grid.Column="1" Classes="modern" Minimum="0" Maximum="1" Value="0"
+                    VerticalAlignment="Center" IsEnabled="False" ToolTip.Tip="Seek"/>
+            <TextBlock x:Name="TotalText" Grid.Column="2" Classes="time" Text="0:00" Margin="6,0,0,0"/>
+        </Grid>
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,2,0,0">
+            <Button x:Name="PlayPauseButton" Classes="cmd transport" ToolTip.Tip="Play" Click="OnPlayPauseClick">
+                <ic:SymbolIcon x:Name="PlayPauseIcon" Symbol="Play" IconVariant="Filled" FontSize="16"/>
+            </Button>
+            <Button x:Name="StopButton" Classes="cmd transport" ToolTip.Tip="Stop" Margin="4,0,12,0" Click="OnStopClick">
+                <ic:SymbolIcon Symbol="Stop" IconVariant="Filled" FontSize="16"/>
+            </Button>
+            <ic:SymbolIcon x:Name="VolumeIcon" Symbol="Speaker2" FontSize="15" Foreground="{DynamicResource IconGray}"
+                           VerticalAlignment="Center" Margin="0,0,4,0"/>
+            <Slider x:Name="VolumeSlider" Classes="modern" Width="80" Minimum="0" Maximum="100" Value="100"
+                    VerticalAlignment="Center" ToolTip.Tip="Volume"/>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

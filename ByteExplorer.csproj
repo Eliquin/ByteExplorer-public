@@ -13,7 +13,7 @@
     <Nullable>disable</Nullable>
     <ImplicitUsings>disable</ImplicitUsings>
     <Deterministic>true</Deterministic>
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <Product>ByteExplorer</Product>
     <Authors>Eliquin and ByteExplorer contributors</Authors>
     <Copyright>Copyright © 2026 Eliquin and ByteExplorer contributors. Licensed under the Mozilla Public License 2.0.</Copyright>

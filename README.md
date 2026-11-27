@@ -12,7 +12,7 @@ in a window you can make your own.
 [![License: MPL 2.0](https://img.shields.io/badge/license-MPL%202.0-brightgreen.svg)](LICENSE)
 ![.NET 9](https://img.shields.io/badge/.NET-9-512BD4.svg)
 ![Avalonia 11](https://img.shields.io/badge/Avalonia-11.3-8B44AC.svg)
-![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS-0067C0.svg)
+![Platforms](https://img.shields.io/badge/platforms-Windows%20%7C%20Linux%20%7C%20macOS%20(experimental)-0067C0.svg)
 ![No telemetry](https://img.shields.io/badge/telemetry-none-success.svg)
 
 <img src="docs/screenshots/modern-light-timeline.png" alt="ByteExplorer, Modern layout, Timeline view" width="900"/>
@@ -82,9 +82,20 @@ Nothing else to install: .NET is included.
   Click **More info**, then **Run anyway**.
 - `SHA256SUMS.txt` on each release lets you check the downloads (`sha256sum -c SHA256SUMS.txt`, or
   `Get-FileHash` in PowerShell).
-- A macOS build isn't published yet; on a Mac, build it from source as below.
+- A macOS build isn't published yet; on a Mac, build it from source as below (macOS is experimental, see below).
 - `vlc-<version>.tar.xz` on a release is VLC's source code, published because the Windows build includes VLC
   (its license asks for that). You don't need it to use ByteExplorer.
+
+### Tested platforms
+
+- **Windows (64-bit): tested and working.** ByteExplorer is built and used by its author on Windows 10; Windows 11 is
+  supported too.
+- **Linux (64-bit): tested and working.** The full automated test suite (600+ tests) runs on Linux, and the release
+  build was started and checked on Ubuntu 24.04. Reports from different distributions and desktops (GNOME, KDE,
+  Xfce, …) are welcome.
+- **macOS: experimental and untested.** The code supports macOS (Trash, volumes, VLC.app), but it hasn't been run on a
+  Mac yet and no macOS build is published. Expect rough edges; [bug reports](https://github.com/Eliquin/ByteExplorer-public/issues)
+  are very welcome.
 
 ## Build from source
 
